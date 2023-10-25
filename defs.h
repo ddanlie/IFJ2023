@@ -16,15 +16,15 @@ typedef enum id_type_t
 
 typedef enum literal_type_t
 {
-    INT, STRING, DOUBLE,
-    NINT, NSTRING, NDOUBLE, //nillable int/string/double
-    VOID
+    INT_TYPE, STRING_TYPE, DOUBLE_TYPE,
+    NINT_TYPE, NSTRING_TYPE, NDOUBLE_TYPE, //nillable int/string/double
+    VOID_TYPE
 } literal_type;
 
 //symbol table token to construct from lexeme tokens
 typedef struct symtb_token_t
 {
-    char *id_name;//id is always a pointer to a heap, so it can be freed
+    char *id_name;//id is always a pointer to a heap (malloc), so it can be freed
     id_type type;
     literal_type lit_type;//for variable/constant INT/NINT,STRING/NSTRING and DOUBLE/NDOUBLE are legitimate //for function that means what it returns
     literal_type *funcArgs;//array order corresponds to funcArgnames

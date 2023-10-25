@@ -22,12 +22,14 @@ typedef struct lex_token_t
     lexeme lexeme_type;
     int int_value;
     double double_value;
-    char* str_value;
+    char* str_value;//is always allocated 
 } lex_token;
 
 //init all pointers of the token as null.
 //call this function before using token
 void initLexToken(lex_token* token);
+
+void clearLexToken(lex_token *token);
 
 ret_t getNextToken(lex_token* token);
 
