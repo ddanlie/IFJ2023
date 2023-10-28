@@ -62,6 +62,18 @@ void addToStr(lex_token* token, char c){
     token->str.value[token->str.len++] = c;
 }
 
+void clearLexToken(lex_token *token)
+{
+    token->lexeme_type = 0;
+    token->int_value = 0;
+    token->double_value = 0;
+
+    free(token->str.value);
+    token->str.value = NULL;
+    token->str.capacity = 0;
+    token->str.len = 0;
+}
+
 ret_t getNextToken(lex_token* token)
 {
     //states that lexical automata can take (see documentation)

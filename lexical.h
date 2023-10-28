@@ -37,6 +37,8 @@ typedef struct lex_token_t
 //call this function before using token
 void initLexToken(lex_token* token);
 
+void clearLexToken(lex_token *token);
+
 ret_t getNextToken(lex_token* token);
 
 int checkKeyword(lex_token token);

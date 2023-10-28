@@ -98,7 +98,7 @@ ret_t listInsert(List *lst,  void* elem, unsigned i);
 description
     prints list elements if they are printable
 parameters
-    toString - function that can cast your element to string (char*)
+    toString - function that can cast your element to a string (char*)
 return value
     -
 */
