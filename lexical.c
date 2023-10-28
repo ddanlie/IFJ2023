@@ -7,7 +7,13 @@ void initLexToken(lex_token* token)
     token->str_value = NULL;
 }
 
-ret_t getNextToken(lex_token* token);
+void clearLexToken(lex_token *token)
+{
+    free(token->str_value);
+    token->str_value = NULL;
+}
+
+ret_t getNextToken(lex_token* token)
 {
     //states that lexical automata can take (see documentation)
     typedef enum q_enum
@@ -39,14 +45,14 @@ ret_t getNextToken(lex_token* token);
         ESC3,       // Yet another escape sequence state
         ESC4,       // Another escape sequence state
         ESC5,        // Another escape sequence state
-        Q/* ? */,
-        QQ/* ?? */,
-        LEQ/* <= */,
-        GEQ/* >= */,
-        NEQ/* != */,
+        Q,/* ? */
+        QQ,/* ?? */
+        LEQ,/* <= */
+        GEQ,/* >= */
+        NEQ/* != */
         //EXCLAM/* ! */, theese two don't need extra state as they consist of 1 character, so
         //EQ/* = */,     they can be dealt in one raw of switch-case construction
-    } Q;
+    } States;
     
     
     //clear token memory
