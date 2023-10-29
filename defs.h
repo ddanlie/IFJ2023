@@ -34,4 +34,7 @@ typedef struct symtb_token_t
 
 void clearSymtbToken(symtb_token);
 
+int isNumber(char c);
+int isAlpha(char c);
+
 #endif //DEFS_H

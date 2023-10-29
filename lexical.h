@@ -12,10 +12,12 @@
 //lexemes to read
 typedef enum lexeme_enum
 {
-    INT, DOUBLE, STRING, NIL,
-    IF, WHILE, ELSE, FUNC, LET, RETURN, VAR,
-    Q/* ? */, QQ/* ?? */, EXCLAM/* ! */, EQ/* = */, LEQ/* <= */, GEQ/* >= */, NEQ/* != */,
-    MINUS, PLUS, LE/* < */, GT/* > */,
+    UNDEF, INT, DOUBLE, STRING, NIL, NILINT, NILDOUBLE, NILSTRING,
+    IF, WHILE, ELSE, FUNC, LET, RETURN, VAR, WITH,
+    Q/* ? */, QQ/* ?? */, EXCLAM/* ! */, EQ/* == */, LEQ/* <= */, GEQ/* >= */, NEQ/* != */,
+    MINUS, PLUS, LE/* < */, GT/* > */, AS/* = */,
+    MUL, DIV, ID1/* _ */, ID,
+    LBR1, RBR1, LBR2, RBR2, COLON, COMMA,
     
     INT_LIT, DOUBLE_LIT, STRING_LIT, LRGSTRING_LIT/* large string literal */,
 } lexeme;
@@ -37,16 +39,13 @@ typedef struct lex_token_t
 
 //init all pointers of the token as null.
 //call this function before using token
-void initLexToken(lex_token* token);
-
+int initLexToken(lex_token* token);
+int addToStr(lex_token* token, char c);
 void clearLexToken(lex_token *token);
 
 ret_t getNextToken(lex_token* token);
 
 int checkKeyword(lex_token token);
 int checkType(lex_token token);
-
-int isNumber(char c);
-int isAlpha(char c);
 
 #endif //LEXICAL_H
