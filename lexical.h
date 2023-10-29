@@ -5,6 +5,8 @@
 #ifndef LEXICAL_H
 #define LEXICAL_H
 
+#define INIT_STR_SIZE 10
+
 #include "defs.h"
 
 //lexemes to read
@@ -44,5 +46,7 @@ ret_t getNextToken(lex_token* token);
 int checkKeyword(lex_token token);
 int checkType(lex_token token);
 
+int isNumber(char c);
+int isAlpha(char c);
 
 #endif //LEXICAL_H

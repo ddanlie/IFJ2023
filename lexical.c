@@ -6,8 +6,8 @@ void initLexToken(lex_token* token)
     token->double_value = 0.f;
     token->int_value = 0;
     
-    token->str.value = malloc(sizeof(char) * 10);
-    token->str.capacity = 10;
+    token->str.value = malloc(sizeof(char) * INIT_STR_SIZE);
+    token->str.capacity = INIT_STR_SIZE;
     token->str.len = 0;
 }
 
@@ -74,6 +74,20 @@ void clearLexToken(lex_token *token)
     token->str.len = 0;
 }
 
+int isNumber(char c){
+    if(c >= '0' && c <= '9')
+        return 1;
+    return 0;
+}
+
+int isAlpha(char c){
+    if(c >= 'a' && c <= 'z')
+        return 1;
+    else if(c >= 'A' && c <= 'Z')
+        return 1;
+    return 0;
+}
+
 ret_t getNextToken(lex_token* token)
 {
     //states that lexical automata can take (see documentation)
@@ -116,7 +130,10 @@ ret_t getNextToken(lex_token* token)
         NEQ/* != */,
         EXCLAM/* ! */, 
         AS /* = */,
-        EQ/* == */,     
+        EQ/* == */,
+        MUL/* * */,
+        DIV/* / */,
+        UNDEF,
     } State;
 
     initLexToken(token);
@@ -162,6 +179,12 @@ ret_t getNextToken(lex_token* token)
                 state = STR;
                 break;
 
+            case '*':
+                addToStr(token, c);
+                state = MUL;
+                end = 1;
+                break;
+
             case '-':
             case '+':
                 addToStr(token, c);
@@ -190,16 +213,18 @@ ret_t getNextToken(lex_token* token)
                 break;
             
             default:    //Others
-                if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))    //Alpha
+                if(isAlpha(c))    //Alpha
                     state = IDF;
-                else if(c >= '0' && c <= '9')  //Digit
+                else if(isNumber(c))  //Digit
                     state = INT;
                 else if(c == EOF){
                     ungetc(c, stdin);
                     return 1;
                 }
-                else
+                else{
+                    token->lexeme_type = UNDEF;
                     return 10;
+                }
                 addToStr(token, c);
                 break;
             }
@@ -266,13 +291,15 @@ ret_t getNextToken(lex_token* token)
             break;  //End Q
 
         case ID1:   //Beginning ID1
-            if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||  //Alpha
-               (c >= '0' && c <= '9') || c == '_'){  //Digit
+            if(isAlpha(c) || isNumber(c)){
                addToStr(token, c);
                state = IDF;
             }
-            else
+            else{
+                ungetc(c, stdin);
+                token->lexeme_type = UNDEF;
                 return 10;
+            }
             break;  //End ID1
 
         case KWRD:
@@ -291,8 +318,7 @@ ret_t getNextToken(lex_token* token)
                 break;
             }
             
-            if(!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||  //Alpha
-               (c >= '0' && c <= '9') || c == '_')){     //Digit
+            if(!(isAlpha(c) || isNumber(c) || c == '_')){
                 ungetc(c, stdin);
                 end = 1;
                }
@@ -314,7 +340,16 @@ ret_t getNextToken(lex_token* token)
                 break;
             
             default:
-                return 10;
+                if(isNumber(c) || isAlpha(c) || c == ' ' || c == '_'){
+                    ungetc(c, stdin);
+                    state = DIV;
+                    end = 1;
+                }
+                else{
+                    ungetc(c, stdin);
+                    token->lexeme_type = UNDEF;
+                    return 10;
+                }
                 break;
             }
             break;  //End COM1
@@ -334,7 +369,7 @@ ret_t getNextToken(lex_token* token)
             break;  //End BCOM2w
 
         case INT:   //Beginnig INT
-            if(c >= '0' && c <= '9')
+            if(isNumber(c))
                 addToStr(token, c);
             else if(c == '.'){
                 addToStr(token, c);
@@ -345,46 +380,52 @@ ret_t getNextToken(lex_token* token)
                 state = EXP;
             }
             else{
+                ungetc(c, stdin);
                 token->int_value = atoi(token->str.value);
                 end = 1;
             }
             break;  //End INT
 
         case D2:    //Beginning D2
-            if(c >= '0' && c <= '9'){
+            if(isNumber(c)){
                 addToStr(token, c);
                 state = DEC1;
             }
-            else
+            else{
+                ungetc(c, stdin);
+                token->lexeme_type = UNDEF;
                 return 10;
+            }
             break;  //End D2
 
         case DEC1:  //Beginning DEC1
-            if(c >= '0' && c <= '9')
+            if(isNumber(c))
                 addToStr(token, c);
             else if(c == 'e' || c == 'E'){
                 addToStr(token, c);
                 state = EXP;
             }
             else{
+                ungetc(c, stdin);
                 token->double_value = atof(token->str.value);
                 end = 1;
             }
             break;  //End DEC1
 
         case EXP:   //Beginnig EXP
-            if((c >= '0' && c <= '9') || c == '+' || c == '-'){
+            if(isNumber(c) || c == '+' || c == '-'){
                 addToStr(token, c);
                 state = DEC2;
             }
             else{
                 ungetc(c, stdin);
+                token->lexeme_type = UNDEF;
                 return 10;
             }
             break;  //End EXP
 
         case DEC2:  //Beginning DEC2
-            if(c >= '0' && c <= '9')
+            if(isNumber(c))
                 addToStr(token, c);
             else{
                 ungetc(c, stdin);
@@ -394,7 +435,7 @@ ret_t getNextToken(lex_token* token)
 
         case STR:   //Beginning STR
             if(c == '\n' || c == EOF){
-                ungetc(c, stdin);
+                token->lexeme_type = UNDEF;
                 return 10;
             }
             addToStr(token, c);
