@@ -11,16 +11,21 @@ void clearSymtbToken(symtb_token token)
     free(token.funcArgnames);
 }
 
-int isNumber(char c){   //přidat do defs
+int isDigit(char c){   //přidat do defs
     if(c >= '0' && c <= '9')
         return 1;
     return 0;
 }
 
 int isAlpha(char c){
-    if(c >= 'a' && c <= 'z')
+    if((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
         return 1;
-    else if(c >= 'A' && c <= 'Z')
+    return 0;
+}
+
+int isHex(char c)
+{
+    if(isDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))
         return 1;
     return 0;
 }

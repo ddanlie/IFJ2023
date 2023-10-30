@@ -1,6 +1,3 @@
-//
-// Created by Daniel on 18.09.2023.
-//
 #include "list_test.h"
 
 int list_add_test()
@@ -14,7 +11,7 @@ int list_add_test()
     listAdd(lst, (void*)&arg);
     arg = 14;
     listAdd(lst, (void*)&arg);
-    printList(lst, intToString);
+    //printList(lst, intToString);
     return 0;
 }
 

@@ -1,40 +1,20 @@
-#include"lexical_test.h"
+#include "lexical_test.h"
 
-void vypisTokenu(int i, lex_token token){
-    printf("Navratova hodnota: %d\n", i);
-
-    printf("lexeme_type: %d\n", token.lexeme_type);
-    printf("str_value: ");
-    for(int i = 0; i < token.str.len; i++)
-        printf("%c", token.str.value[i]);
-    printf("\n");
-    printf("int_value: %d\n", token.int_value);
-    printf("double_value: %f\n\n", token.double_value);
-}
-
-void uvolnit_token(lex_token* token){
-    token->lexeme_type = 0;
-    token->int_value = 0;
-    token->double_value = 0;
-
-    free(token->str.value);
-    token->str.value = NULL;
-    token->str.capacity = 0;
-    token->str.len = 0;
-}
 
 int main(){
-    char c = 0;
-    while(1){
-        c = getchar();
-        if(c == EOF)
-            break;
-        ungetc(c, stdin);
-
+    char *testFile = "C:/Users/Daniel/Desktop/subjectsSources/IFJ/projopak/lexicalBranch/IFJ2023-lexical/test/lextest.txt";
+    FILE *tf = fopen(testFile, "r");
+    if(tf == NULL)
+        printf("error reading file\n");
+    int i = 0;
+    int counter = 1;
+    while(i != -1){
         lex_token token;
-        int i = getNextToken(&token);
-        vypisTokenu(i, token); 
-        uvolnit_token(&token);
+        printf("#%d\n", counter++);
+        i = getNextToken(&token, tf);
+        printf("Return value: %d\n", i);
+        printLexToken(token);
     }
+    fclose(tf);
     return 0;
 }
