@@ -37,6 +37,7 @@ List* listInit(unsigned elSize);
 /*
 description
     free memory from List data structure
+    if you use structures with pointers inside, take all elements with 'listGet' and free them first, then use this function
 parameters
     lst - List pointer
 return value
@@ -59,6 +60,7 @@ ret_t listAdd(List *lst, void *elem);
 /*
 description
     deletes an i`s element of list
+    if you use structures with pointers inside, take element 'listGet' and free it first, then use this function
 parameters
     lst - list where to delete from
     i - element index beginning with 0

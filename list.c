@@ -15,6 +15,7 @@ List* listInit(unsigned elSize)
     return newList;
 }
 
+
 void listDestroy(List *lst)
 {
     listElem *tmp;
@@ -59,6 +60,7 @@ ret_t listAdd(List *lst, void *elem)
     return 0;
 }
 
+
 ret_t listDelete(List *lst, unsigned i)
 {
     if(lst->size <= i)
@@ -89,7 +91,7 @@ ret_t listDelete(List *lst, unsigned i)
     return 0;
 }
 
-void *listGet(List *lst, unsigned i)
+void* listGet(List *lst, unsigned i)
 {
     if(lst->size <= i)
         return NULL;

@@ -35,7 +35,7 @@ void symtb_clear(symtable stb)
     for(int i = 0; i < stb.size; i++)
     {
         if(! stb.symtb_arr[i].deleted)
-            clearSymtbToken(stb.symtb_arr[i].token);
+            clearSymtbToken(&stb.symtb_arr[i].token);
     }
     free(stb.symtb_arr);
 }

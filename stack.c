@@ -11,6 +11,7 @@ Stack* stackInit(unsigned elSize)
     return newStack;
 }
 
+
 void stackDestroy(Stack *st)
 {
     listDestroy(st->lst);

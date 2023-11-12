@@ -22,7 +22,7 @@ typedef struct symtable_t
     int capacity;
 } symtable;
 
-symtable symtb_init();
+symtable symtb_init(int init_size);
 
 unsigned long hash(char *str, int capacity);
 
