@@ -751,12 +751,12 @@ void printLexToken(lex_token token){
 
 int initLexToken(lex_token* token)
 {
-    clearLexToken(token);
-    
-    token->lexeme_type = 0;
+    token->lexeme_type = UNDEF;
     token->double_value = 0.f;
     token->int_value = 0;
     
+    if(token->str.value != NULL)
+        free(token->str.value);
     token->str.value = malloc(sizeof(char) * INIT_STR_SIZE);
     if(token->str.value == NULL)
         return 1;
@@ -766,17 +766,18 @@ int initLexToken(lex_token* token)
     return 0;
 }
 
+void freeLexToken(lex_token *token)
+{
+    if(token->str.value != NULL)
+        free(token->str.value);
+    clearLexToken(token);
+}
+
 void clearLexToken(lex_token *token)
 {
     token->lexeme_type = UNDEF;
     token->int_value = 0;
     token->double_value = 0;
-    
-    if(token->str.value != NULL)
-    {
-        free(token->str.value);
-        token->str.value = NULL;
-    }
     token->str.value = NULL;
     token->str.capacity = 0;
     token->str.len = 0;
@@ -784,7 +785,7 @@ void clearLexToken(lex_token *token)
 
 void copyLexToken(lex_token src, lex_token *dst)
 {
-    clearLexToken(dst);
+    freeLexToken(dst);
     *dst = src;
     dst->str.value = malloc(sizeof(char) * (src.str.len + 1));
     dst->str.capacity = src.str.len + 1;

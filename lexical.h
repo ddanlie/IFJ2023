@@ -6,6 +6,7 @@
 #define INIT_STR_SIZE 10
 #define MAX_ESCAPE_HEX_LEN 8
 #define ASCII_REPR_START 31
+#define LEXEMES_COUNT 40
 
 extern bool eoln_flag; // means that there was an end of line during reading next token, becomes resets to false for every new reading
 extern bool end_of_file_flag;
@@ -34,9 +35,14 @@ typedef struct lex_token_t
 } lex_token;
 
 //init all pointers of the token as null.
-//call this function before using token
-int initLexToken(lex_token* token);
+//call this function before using token and then initLexToken
+//example:
+// 1st use: clearLexToken(...); initLexToken(...).
+// 2nd and more: initLexToken(...).
+// Last use: freeLexToken(...)
 void clearLexToken(lex_token *token);
+int initLexToken(lex_token* token);
+void freeLexToken(lex_token *token);
 void copyLexToken(lex_token src, lex_token *dst);
 int addToStr(lex_token* token, char c);
 void printLexeme(lexeme l);

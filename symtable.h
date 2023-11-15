@@ -80,6 +80,7 @@ void symtbTokenCopyName(symtb_token *dst, lex_token src);
 void checkArgsSetSize(symtb_token *dst);
 //next 3 functions watch each other. you cannot add next argument until all three of them are used. see 'checkArgsSetSize' function
 void symtbTokenAddArgName(symtb_token *dst,  lex_token src);
+void symtbTokenAddArgType2(symtb_token *dst, symtb_token src);
 void symtbTokenAddArgType(symtb_token *dst, lex_token src);
 void symtbTokenAddLocalArgName(symtb_token *dst, lex_token src);
 

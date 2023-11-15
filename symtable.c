@@ -78,8 +78,8 @@ symtb_node symtb_find(symtable stb, char *key, int *index_found)
 {
     int index = hash(key, stb.capacity);
     int counter = 0;
-    while((counter < stb.capacity) &&  //keed doing while not all elements viewd OR not deleted element which responds to the key is not found 
-            (0 != strcmp(stb.symtb_arr[index].token.id_name, key) || stb.symtb_arr[index].deleted == true))
+    while((counter < stb.capacity) &&  //keed doing while not all elements viewd OR not deleted element which responds to the key is not found
+            (stb.symtb_arr[index].deleted == true || 0 != strcmp(stb.symtb_arr[index].token.id_name, key) ))
     {
         index = (index+1) % stb.capacity;
         counter++;
@@ -173,10 +173,16 @@ void clearSymtbToken(symtb_token *token)
 
 void checkArgsSetSize(symtb_token *dst)
 {
+    if(dst->funcLocalArgnames == NULL ||
+        dst->funcArgnames == NULL ||
+        dst->funcArgTypes == NULL)
+        return;
+    
     if(dst->funcLocalArgnames[dst->funcArgsSize] != NULL
-       && dst->funcArgnames[dst->funcArgsSize] != NULL
-       && dst->funcArgTypes[dst->funcArgsSize] != UNDEF_TYPE)
+        && dst->funcArgnames[dst->funcArgsSize] != NULL)
+    {
         dst->funcArgsSize++;
+    }
 }
 
 void symtbTokenCopyName(symtb_token *dst, lex_token src)
@@ -239,14 +245,14 @@ void symtbTokenAddArgType(symtb_token *dst, lex_token src)
         case STRING_LIT:
             dst->funcArgTypes[dst->funcArgsSize] = STRING_TYPE;
             break;
-        case NILSTRING:
-            dst->funcArgTypes[dst->funcArgsSize] = NSTRING_TYPE;
+        case NILINT:
+            dst->funcArgTypes[dst->funcArgsSize] = NINT_TYPE;
             break;
         case NILDOUBLE:
             dst->funcArgTypes[dst->funcArgsSize] = NDOUBLE_TYPE;
             break;
-        case NILINT:
-            dst->funcArgTypes[dst->funcArgsSize] = NINT_TYPE;
+        case NILSTRING:
+            dst->funcArgTypes[dst->funcArgsSize] = NSTRING_TYPE;
             break;
         case NIL:
             dst->funcArgTypes[dst->funcArgsSize] = UNDEF_TYPE;
@@ -254,6 +260,29 @@ void symtbTokenAddArgType(symtb_token *dst, lex_token src)
         default:
             return;
     }
+    checkArgsSetSize(dst);
+    
+    if(dst->funcArgsSize == args_capacity)
+    {
+        args_capacity *= 2;
+        dst->funcArgTypes = realloc(dst->funcArgTypes, sizeof(literal_type) * args_capacity);
+    }
+}
+
+
+void symtbTokenAddArgType2(symtb_token *dst, symtb_token src)
+{
+    static int args_capacity;
+    if(dst->funcArgTypes == NULL)
+    {
+        args_capacity = 10;
+        dst->funcArgTypes = malloc(sizeof(literal_type)*args_capacity);
+        for(int i = 0; i < args_capacity; i++)
+            dst->funcArgTypes[i] = UNDEF_TYPE;
+    }
+    
+    dst->funcArgTypes[dst->funcArgsSize] = src.lit_type;
+
     checkArgsSetSize(dst);
     
     if(dst->funcArgsSize == args_capacity)
