@@ -1,107 +1,7 @@
 #include "lexical.h"
 
-void strZerosFill(char *str, int start_index, int end_index)
-{
-    for(int i = start_index; i <= end_index; i++)
-        str[i] = '\0';
-}
-
-int initLexToken(lex_token* token)
-{
-    clearLexToken(token);
-    
-    token->lexeme_type = 0;
-    token->double_value = 0.f;
-    token->int_value = 0;
-
-    token->str.value = malloc(sizeof(char) * INIT_STR_SIZE);
-    if(token->str.value == NULL)
-        return 1;
-    token->str.capacity = INIT_STR_SIZE;
-    token->str.len = 0;
-    strZerosFill(token->str.value, 0, token->str.capacity-1);
-    return 0;
-}
-
-void clearLexToken(lex_token *token)
-{
-    token->lexeme_type = UNDEF;
-    token->int_value = 0;
-    token->double_value = 0;
-    
-    if(token->str.value != NULL)
-    {
-        free(token->str.value);
-        token->str.value = NULL;
-    }
-    token->str.value = NULL;
-    token->str.capacity = 0;
-    token->str.len = 0;
-}
-
-void copyLexToken(lex_token src, lex_token *dst)
-{
-    clearLexToken(dst);
-    *dst = src;
-    dst->str.value = malloc(sizeof(char) * (src.str.len + 1));
-    dst->str.capacity = src.str.len + 1;
-    strcpy(dst->str.value, src.str.value);
-}
-
-int checkKeyword(lex_token token){
-    //IF, WHILE, ELSE, FUNC, LET, RETURN, VAR
-    if(!strcmp(token.str.value, "if"))
-        return IF;
-    else if(!strcmp(token.str.value, "while"))
-        return WHILE;
-    else if(!strcmp(token.str.value, "else"))
-        return ELSE;
-    else if(!strcmp(token.str.value, "func"))
-        return FUNC;
-    else if(!strcmp(token.str.value, "let"))
-        return LET;
-    else if(!strcmp(token.str.value, "return"))
-        return RETURN;
-    else if(!strcmp(token.str.value, "var"))
-        return VAR;
-
-    return -1;//-1 because 0 can be a 0th lexeme enum
-}
-
-int checkType(lex_token token){
-    //INT, DOUBLE, STRING, NIL
-    if(!strcmp(token.str.value, "Int"))
-        return INT;
-    else if(!strcmp(token.str.value, "Double"))
-        return DOUBLE;
-    else if(!strcmp(token.str.value, "String"))
-        return STRING;
-    else if(!strcmp(token.str.value, "nil"))
-        return NIL;
-    else if(!strcmp(token.str.value, "Int?"))
-        return NILINT;
-    else if(!strcmp(token.str.value, "Double?"))
-        return NILDOUBLE;
-    else if(!strcmp(token.str.value, "String?"))
-        return NILSTRING;
-
-    return -1;//-1 because 0 can be a 0th lexeme enum
-}
-
-int addToStr(lex_token* token, char c){
-    if(token->str.len == token->str.capacity-1){ // don't forget about '\0'
-        token->str.capacity *= 2;
-        token->str.value = (char *)realloc(token->str.value, token->str.capacity);
-        if(token->str.value == NULL)
-            return 1;
-        strZerosFill(token->str.value, token->str.len, token->str.capacity-1);
-    }
-
-    token->str.value[token->str.len++] = c;
-    return 0;
-}
-
-
+bool eoln_flag; // means that there was an end of line during reading next token, becomes resets to false for every new reading
+bool end_of_file_flag;
 
 ret_t getNextToken(lex_token* token, FILE *input_file)
 {
@@ -787,7 +687,6 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
     return 0;
 }
 
-
 void printLexeme(lexeme l)
 {
     switch (l) {
@@ -847,4 +746,100 @@ void printLexToken(lex_token token){
     
     printf("double value: %f\n", token.double_value);
     printf("_______________________\n");
+}
+
+
+int initLexToken(lex_token* token)
+{
+    clearLexToken(token);
+    
+    token->lexeme_type = 0;
+    token->double_value = 0.f;
+    token->int_value = 0;
+    
+    token->str.value = malloc(sizeof(char) * INIT_STR_SIZE);
+    if(token->str.value == NULL)
+        return 1;
+    token->str.capacity = INIT_STR_SIZE;
+    token->str.len = 0;
+    strZerosFill(token->str.value, 0, token->str.capacity-1);
+    return 0;
+}
+
+void clearLexToken(lex_token *token)
+{
+    token->lexeme_type = UNDEF;
+    token->int_value = 0;
+    token->double_value = 0;
+    
+    if(token->str.value != NULL)
+    {
+        free(token->str.value);
+        token->str.value = NULL;
+    }
+    token->str.value = NULL;
+    token->str.capacity = 0;
+    token->str.len = 0;
+}
+
+void copyLexToken(lex_token src, lex_token *dst)
+{
+    clearLexToken(dst);
+    *dst = src;
+    dst->str.value = malloc(sizeof(char) * (src.str.len + 1));
+    dst->str.capacity = src.str.len + 1;
+    strcpy(dst->str.value, src.str.value);
+}
+
+int checkKeyword(lex_token token){
+    //IF, WHILE, ELSE, FUNC, LET, RETURN, VAR
+    if(!strcmp(token.str.value, "if"))
+        return IF;
+    else if(!strcmp(token.str.value, "while"))
+        return WHILE;
+    else if(!strcmp(token.str.value, "else"))
+        return ELSE;
+    else if(!strcmp(token.str.value, "func"))
+        return FUNC;
+    else if(!strcmp(token.str.value, "let"))
+        return LET;
+    else if(!strcmp(token.str.value, "return"))
+        return RETURN;
+    else if(!strcmp(token.str.value, "var"))
+        return VAR;
+    
+    return -1;//-1 because 0 can be a 0th lexeme enum
+}
+
+int checkType(lex_token token){
+    //INT, DOUBLE, STRING, NIL
+    if(!strcmp(token.str.value, "Int"))
+        return INT;
+    else if(!strcmp(token.str.value, "Double"))
+        return DOUBLE;
+    else if(!strcmp(token.str.value, "String"))
+        return STRING;
+    else if(!strcmp(token.str.value, "nil"))
+        return NIL;
+    else if(!strcmp(token.str.value, "Int?"))
+        return NILINT;
+    else if(!strcmp(token.str.value, "Double?"))
+        return NILDOUBLE;
+    else if(!strcmp(token.str.value, "String?"))
+        return NILSTRING;
+    
+    return -1;//-1 because 0 can be a 0th lexeme enum
+}
+
+int addToStr(lex_token* token, char c){
+    if(token->str.len == token->str.capacity-1){ // don't forget about '\0'
+        token->str.capacity *= 2;
+        token->str.value = (char *)realloc(token->str.value, token->str.capacity);
+        if(token->str.value == NULL)
+            return 1;
+        strZerosFill(token->str.value, token->str.len, token->str.capacity-1);
+    }
+    
+    token->str.value[token->str.len++] = c;
+    return 0;
 }

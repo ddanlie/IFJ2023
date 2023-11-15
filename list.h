@@ -1,14 +1,11 @@
-//Implementace překladače imperativního jazyka IFJ22
-//Danil Domrachev (xdomra00)
-
-
 #ifndef LIST_H
 #define LIST_H
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "defs.h"
+
+typedef short int ret_t;
 
 typedef struct list_elem
 {
@@ -22,6 +19,8 @@ typedef struct
     unsigned elSize;
     unsigned size;//elements counter
 } List;
+
+
 
 /*
 description

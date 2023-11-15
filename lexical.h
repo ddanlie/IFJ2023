@@ -1,11 +1,14 @@
 #ifndef LEXICAL_H
 #define LEXICAL_H
 
+#include "defs.h"
+
 #define INIT_STR_SIZE 10
 #define MAX_ESCAPE_HEX_LEN 8
 #define ASCII_REPR_START 31
 
-#include "defs.h"
+extern bool eoln_flag; // means that there was an end of line during reading next token, becomes resets to false for every new reading
+extern bool end_of_file_flag;
 
 //lexemes to read
 typedef enum lexeme_enum
@@ -21,14 +24,6 @@ typedef enum lexeme_enum
     INT_LIT, DOUBLE_LIT, STRING_LIT/* including large string literal */,
 } lexeme;
 
-
-
-typedef struct str_value_t{
-    char* value;
-    int capacity;
-    int len;
-} str_value;
-
 //token for lexeme type and its value
 typedef struct lex_token_t
 {
@@ -38,8 +33,6 @@ typedef struct lex_token_t
     str_value str;
 } lex_token;
 
-bool eoln_flag; // means that there was an end of line during reading next token, becomes resets to false for every new reading
-bool end_of_file_flag;
 //init all pointers of the token as null.
 //call this function before using token
 int initLexToken(lex_token* token);
@@ -51,7 +44,10 @@ int checkKeyword(lex_token token);
 int checkType(lex_token token);
 void printLexToken(lex_token token);
 
+
 ret_t getNextToken(lex_token* token, FILE *input_file);
+
+
 
 
 #endif //LEXICAL_H

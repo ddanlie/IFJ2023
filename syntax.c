@@ -1,6 +1,22 @@
 #include "syntax.h"
 
 
+FILE *readfile;
+
+lex_token current_lex_token;
+lex_token previous_lex_token;
+symtb_token current_symtb_token;
+symtb_token current_called_function;
+Stack *undefined_functions;
+
+symtable global_table;
+Stack *local_tables;
+
+int current_local_level;
+
+ret_t analysis_error;
+
+
 bool GLOBAL_COMMAND_LIST();
 bool LOCAL_COMMAND_LIST();
 bool FUNC_COMMAND_LIST();
@@ -857,6 +873,8 @@ bool getFromLocalTables(char *id, symtb_token *token_found, symtable **table_fou
     
     return false;
 }
+
+
 
 ret_t analyze_syntax(FILE *input_file)
 {

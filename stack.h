@@ -1,12 +1,7 @@
-//Implementace překladače imperativního jazyka IFJ22
-//Danil Domrachev (xdomra00)
-
 #ifndef STACK_H
 #define STACK_H
 
 #include "list.h"
-#include <stdio.h>
-
 
 typedef struct
 {

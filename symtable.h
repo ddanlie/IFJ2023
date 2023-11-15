@@ -2,11 +2,38 @@
 #ifndef SYMTABLE_H
 #define SYMTABLE_H
 
-#include "defs.h"
-
-
 #define SYMTABLE_INIT_SIZE 10
 #define HASHNUM 5381
+
+#include <stdbool.h>
+#include "lexical.h"
+
+typedef enum id_type_t
+{
+    UNDEF_ID, VARIABLE, CONSTANT, FUNCTION
+} id_type;
+
+typedef enum literal_type_t
+{
+    UNDEF_TYPE, INT_TYPE, STRING_TYPE, DOUBLE_TYPE,
+    NINT_TYPE, NSTRING_TYPE, NDOUBLE_TYPE, //nillable int/string/double
+    VOID_TYPE
+} literal_type;
+
+
+//symbol table token to construct from lexeme tokens
+typedef struct symtb_token_t
+{
+    char *id_name;//id is always a pointer to a heap (malloc), so it can be freed
+    id_type type;
+    literal_type lit_type;//for variable/constant INT/NINT,STRING/NSTRING and DOUBLE/NDOUBLE are legitimate //for function that means what it returns
+    literal_type *funcArgTypes;//array order corresponds to funcArgnames
+    char **funcArgnames;//array order corresponds to funcArgs //array and its elements are always pointers to a heap so they can be freed
+    char **funcLocalArgnames;//array order corresponds to funcArgs //array and its elements are always pointers to a heap so they can be freed
+    int funcArgsSize;
+    bool initialized;//VARIABLE: if variable was initialized with some value or not
+    //FUNCTION: if function call was found this variable sets to false, otherwise if complete function definition was found - true
+} symtb_token;
 
 
 typedef struct symtb_node_t
@@ -15,6 +42,7 @@ typedef struct symtb_node_t
     bool deleted;
 } symtb_node;
 
+
 typedef struct symtable_t
 {
     symtb_node* symtb_arr;
@@ -22,6 +50,7 @@ typedef struct symtable_t
     int capacity;
     int local_level;
 } symtable;
+
 
 symtable symtb_init(int init_size);
 
@@ -42,5 +71,16 @@ ret_t symtb_delete(symtable *stb, char *key);//pass a pointer because we need to
 
 void symtb_print(symtable stb);
 
+
+
+
+void initSymtbToken(symtb_token *token);
+void clearSymtbToken(symtb_token *token);
+void symtbTokenCopyName(symtb_token *dst, lex_token src);
+void checkArgsSetSize(symtb_token *dst);
+//next 3 functions watch each other. you cannot add next argument until all three of them are used. see 'checkArgsSetSize' function
+void symtbTokenAddArgName(symtb_token *dst,  lex_token src);
+void symtbTokenAddArgType(symtb_token *dst, lex_token src);
+void symtbTokenAddLocalArgName(symtb_token *dst, lex_token src);
 
 #endif //SYMTABLE_H

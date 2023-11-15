@@ -1,29 +1,10 @@
-//
-// Created by Daniel on 21.10.2023.
-//
-
 #ifndef SYNTAX_H
 #define SYNTAX_H
 
+#include <stdbool.h>
 #include "defs.h"
-#include "lexical.h"
-#include "symtable.h"
 #include "stack.h"
-
-FILE *readfile;
-
-lex_token current_lex_token;
-lex_token previous_lex_token;
-symtb_token current_symtb_token;
-symtb_token current_called_function;
-Stack *undefined_functions;
-
-symtable global_table;
-Stack *local_tables;
-
-int current_local_level;
-
-ret_t analysis_error;
+#include "symtable.h"
 
 
 void searchCalledFunction(lex_token function);
