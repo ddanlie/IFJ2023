@@ -156,6 +156,7 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
     int state = S;
     //flags
     eoln_flag = false;
+    end_of_file_flag = false;
     while(!end){
         c = fgetc(input_file);
 
@@ -260,6 +261,7 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
                     else if(isDigit((char)c))
                         state = INTS;
                     else if(c == EOF){
+                        end_of_file_flag = true;
                         return -1;
                     }
                     else{

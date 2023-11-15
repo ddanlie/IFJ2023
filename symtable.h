@@ -20,6 +20,7 @@ typedef struct symtable_t
     symtb_node* symtb_arr;
     int size;
     int capacity;
+    int local_level;
 } symtable;
 
 symtable symtb_init(int init_size);

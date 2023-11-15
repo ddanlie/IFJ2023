@@ -21,11 +21,15 @@ symtable symtb_init(int init_size)
         newTable.capacity = -1;
         newTable.size = -1;
     }
-    newTable.capacity = init_size;
-    newTable.size = 0;
-    for(int i = 0; i < newTable.capacity; i++)
+    else
     {
-        newTable.symtb_arr[i].deleted = true;
+        newTable.capacity = init_size;
+        newTable.size = 0;
+        newTable.local_level = -1;
+        for(int i = 0; i < newTable.capacity; i++)
+        {
+            newTable.symtb_arr[i].deleted = true;
+        }
     }
     return newTable;
 }

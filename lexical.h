@@ -39,7 +39,7 @@ typedef struct lex_token_t
 } lex_token;
 
 bool eoln_flag; // means that there was an end of line during reading next token, becomes resets to false for every new reading
-
+bool end_of_file_flag;
 //init all pointers of the token as null.
 //call this function before using token
 int initLexToken(lex_token* token);

@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "lexical.h"
+
 
 #define LEXICAL_ERROR 1       // Lexical analysis error (faulty structure of current lexeme)
 #define SYNTAX_ERROR 2        // Syntax analysis error
@@ -41,8 +43,9 @@ typedef struct symtb_token_t
     char *id_name;//id is always a pointer to a heap (malloc), so it can be freed
     id_type type;
     literal_type lit_type;//for variable/constant INT/NINT,STRING/NSTRING and DOUBLE/NDOUBLE are legitimate //for function that means what it returns
-    literal_type *funcArgs;//array order corresponds to funcArgnames
+    literal_type *funcArgTypes;//array order corresponds to funcArgnames
     char **funcArgnames;//array order corresponds to funcArgs //array and its elements are always pointers to a heap so they can be freed
+    char **funcLocalArgnames;//array order corresponds to funcArgs //array and its elements are always pointers to a heap so they can be freed
     int funcArgsSize;
     bool initialized;//VARIABLE: if variable was initialized with some value or not
                      //FUNCTION: if function call was found this variable sets to false, otherwise if complete function definition was found - true
@@ -50,6 +53,15 @@ typedef struct symtb_token_t
 
 void initSymtbToken(symtb_token *token);
 void clearSymtbToken(symtb_token *token);
+
+void symtbTokenCopyName(symtb_token *dst, lex_token src);
+
+void checkArgsSetSize(symtb_token *dst);
+//next 3 functions watch each other. you cannot add next argument until all three of them are used. see 'checkArgsSetSize' function
+void symtbTokenAddArgName(symtb_token *dst,  lex_token src);
+void symtbTokenAddArgType(symtb_token *dst, lex_token src);
+void symtbTokenAddLocalArgName(symtb_token *dst, lex_token src);
+
 
 int isDigit(char c);
 int isAlpha(char c);
