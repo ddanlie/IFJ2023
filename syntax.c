@@ -19,6 +19,29 @@ const char le = '<';
 const char eq = '=';
 char precedence_table[LEXEMES_COUNT][LEXEMES_COUNT];
 
+#define RULE_BOX 5
+#define RULE_PADDING ELSE
+//first lexeme - expanding non terminal (example E -> (E) is {ID1, LBR1, ID1, RBR1}
+//RULE_PADDING is a breakpoint and extra padding for table to have same amount of elements in each rule
+//EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, NIL, LBR1, RBR1, UNDEF
+lexeme expr_rule_table[][RULE_BOX] = {
+        {ID1, LBR1, ID1, RBR1,  RULE_PADDING},
+        {ID1, NIL,              RULE_PADDING, RULE_PADDING, RULE_PADDING},
+        {ID1, ID,               RULE_PADDING, RULE_PADDING, RULE_PADDING},
+        {ID1, EXCLAM, ID,       RULE_PADDING, RULE_PADDING},
+        {ID1, ID1, MUL, ID1,    RULE_PADDING},
+        {ID1, ID1, DIV, ID1,    RULE_PADDING},
+        {ID1, ID1, PLUS, ID1,   RULE_PADDING},
+        {ID1, ID1, MINUS, ID1,  RULE_PADDING},
+        {ID1, ID1, EQ, ID1,     RULE_PADDING},
+        {ID1, ID1, NEQ, ID1,    RULE_PADDING},
+        {ID1, ID1, LE, ID1,     RULE_PADDING},
+        {ID1, ID1, GT, ID1,     RULE_PADDING},
+        {ID1, ID1, LEQ, ID1,    RULE_PADDING},
+        {ID1, ID1, GEQ, ID1,    RULE_PADDING},
+        {ID1, ID1, QQ, ID1,     RULE_PADDING}
+};
+
 ret_t analysis_error;
 
 
@@ -28,12 +51,104 @@ bool FUNC_COMMAND_LIST();
 bool BLOCK();
 bool LOCAL_COMMAND();
 
+typedef struct expr_lexeme_t
+{
+    lexeme lex;
+    char specChar;//can acquire '<' '>' or '=' chars
+} expr_lexeme;
+
+expr_lexeme top(Stack *st)
+{
+    stackResetSemiPop(st);
+    expr_lexeme *elem = stackSemiPop(st);
+    while(st->semiPopCounter != 0)
+    {
+        switch(elem->lex)
+        {
+            case EXCLAM: case MUL: case DIV: case PLUS:
+            case MINUS: case EQ: case NEQ: case LE:
+            case GT: case LEQ: case GEQ: case QQ:
+            case ID: case NIL: case LBR1:
+            case RBR1: case UNDEF:
+            {
+                stackResetSemiPop(st);
+                return *elem;
+            }
+            default:
+                break;
+        }
+    }
+}
+
+
+
 
 //read first token of expr before use!
 //expressions end up reading next lexeme token
-//In this grammar ID1 '_' is considered as non-terminal 'E'.
+//In this grammar ID1 '_' is considered as non-terminal 'E', and UNDEF is considered as '$'
+//ELSE lexeme is used to show that lexeme does not make sense (actually it can be any out-of-grammar character)
 bool EXPR()
 {
+    Stack *expr_stack = stackInit(sizeof(expr_lexeme));
+    expr_lexeme expr_lex_helper = {UNDEF, '\0'};
+    stackPush(expr_stack, &expr_lex_helper);//push $ on top
+    do
+    {
+        expr_lex_helper = top(expr_stack);//let a = top
+        //let b (aka current_lex_token) = actual input character
+        switch(precedence_table[expr_lex_helper.lex][current_lex_token.lexeme_type])
+        {
+            case eq://'='
+            {
+                expr_lex_helper = (expr_lexeme){current_lex_token.lexeme_type, '\0'};
+                stackPush(expr_stack, &expr_lex_helper);//push b
+                read_move();//read next b
+                break;
+            }
+            case le://'<'
+            {
+                Stack *tmp_st = stackInit(sizeof(expr_lexeme));
+                expr_lexeme *expr_lex_helper_2;
+                
+                expr_lexeme *elem = stackPop(expr_stack);
+                while(elem->lex != expr_lex_helper.lex)
+                {
+                    expr_lex_helper_2 = elem;
+                    stackPush(tmp_st, &expr_lex_helper_2);
+                    elem = stackSemiPop(expr_stack);
+                }
+                *expr_lex_helper_2 = (expr_lexeme){ELSE, le};
+                stackPush(expr_stack, &expr_lex_helper_2);//change a to a<
+                //return characters back
+                expr_lex_helper_2 = stackPop(tmp_st);
+                while(expr_lex_helper_2 != NULL)
+                {
+                    stackPush(expr_stack, expr_lex_helper_2);
+                    expr_lex_helper_2 = stackPop(tmp_st);
+                }
+                stackDestroy(tmp_st);
+                
+                *expr_lex_helper_2 = (expr_lexeme){current_lex_token.lexeme_type, '\0'};
+                stackPush(expr_stack, &expr_lex_helper);//push b
+                read_move();//read next b
+
+                break;
+            }
+            case gr://'>'
+            {
+                //TODO
+                break;
+            }
+            default:
+            {
+                stackDestroy(expr_stack);
+                analysis_error = SYNTAX_ERROR;
+                return false;
+            }
+        }
+        
+        
+    } while(1)
     
     return true;
 }
