@@ -1,4 +1,3 @@
-//Implementace překladače imperativního jazyka IFJ22
 //Danil Domrachev (xdomra00)
 
 

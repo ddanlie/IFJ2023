@@ -185,6 +185,34 @@ void checkArgsSetSize(symtb_token *dst)
     }
 }
 
+void symtbTokenSetType(symtb_token *dst, lex_token src)
+{
+    switch(src.lexeme_type)
+    {
+        case INT:
+            dst->lit_type = INT_TYPE;
+            break;
+        case DOUBLE:
+            dst->lit_type = DOUBLE_TYPE;
+            break;
+        case STRING:
+            dst->lit_type = STRING_TYPE;
+            break;
+        case NILINT:
+            dst->lit_type = NINT_TYPE;
+            break;
+        case NILDOUBLE:
+            dst->lit_type = NDOUBLE_TYPE;
+            break;
+        case NILSTRING:
+            dst->lit_type = NSTRING_TYPE;
+            break;
+        default:
+            dst->lit_type = UNDEF_TYPE;
+            break;
+    }
+}
+
 void symtbTokenCopyName(symtb_token *dst, lex_token src)
 {
     if(dst->id_name == NULL)

@@ -2,9 +2,22 @@
 #define SYNTAX_H
 
 #include <stdbool.h>
-#include "defs.h"
 #include "stack.h"
 #include "symtable.h"
+#include "semantic.h"
+
+extern ret_t analysis_error;
+extern lex_token current_lex_token;
+extern lex_token previous_lex_token;
+extern symtb_token current_symtb_token;
+extern symtb_token current_called_function;
+extern Stack *undefined_functions;
+extern symtable global_table;
+extern Stack *local_tables;
+extern symtable current_local_table;
+extern int current_local_level;
+extern lexeme current_expr_lexeme;
+
 
 
 void initPrecedenceTable();

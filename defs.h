@@ -2,10 +2,11 @@
 #ifndef DEFS_H
 #define DEFS_H
 
+#define SYNTAX_DBG
 
 #define LEXICAL_ERROR 1       // Lexical analysis error (faulty structure of current lexeme)
 #define SYNTAX_ERROR 2        // Syntax analysis error
-#define UNDEF_FUNC_ERROR 3    // Undefined function or variable redefinition
+#define UNDEF_ERROR 3         // Undefined function or variable redefinition
 #define FUNC_PARAM_ERROR 4    // Incorrect function parameters or return type
 #define VAR_INIT_ERROR 5      // Use of undefined or uninitialized variable
 #define RET_VAL_ERROR 6       // Missing/extra expression in return statement

@@ -3,16 +3,20 @@
 
 FILE *readfile;
 
+ret_t analysis_error;
+
 lex_token current_lex_token;
 lex_token previous_lex_token;
 symtb_token current_symtb_token;
 symtb_token current_called_function;
+
 Stack *undefined_functions;
 
 symtable global_table;
 Stack *local_tables;
-
+symtable current_local_table;
 int current_local_level;
+
 
 lexeme current_expr_lexeme;
 #define gr '>'
@@ -46,7 +50,6 @@ lexeme expr_rule_table[][RULE_BOX] = {
         {ID1, ID1, QQ, ID1,     RULE_PADDING}
 };
 
-ret_t analysis_error;
 
 
 bool GLOBAL_COMMAND_LIST();
@@ -55,9 +58,12 @@ bool FUNC_COMMAND_LIST();
 bool BLOCK();
 bool LOCAL_COMMAND();
 
+
+//'expr_lex' is modified 'lex_token.lexeme_type' so it can be recognised by precedence analyser
 typedef struct expr_lexeme_t
 {
-    lexeme lex;
+    lex_token lxtoken;
+    lexeme exp_lex;
     char specChar;//can acquire '<' '>' or '=' chars
 } expr_lexeme;
 
@@ -84,21 +90,18 @@ expr_lexeme top(Stack *st)
     expr_lexeme *elem = stackSemiPop(st);
     while(st->semiPopCounter != 0)
     {
-        if(isExprLexeme(elem->lex))
+        if(isExprLexeme(elem->exp_lex))//exp_lex can be ELSE (which means there is cpecChar '<' or '>') or ID1 which is non-terminal
         {
             stackResetSemiPop(st);
             return *elem;
         }
-        else
-        {
-            break;
-        }
+        elem = stackSemiPop(st);
     }
 }
 
-void correct_current_lexeme()
+void correct_current_lexeme(lex_token incorrect_tkn)
 {
-    switch(current_lex_token.lexeme_type)
+    switch(incorrect_tkn.lexeme_type)
     {
         case INT_LIT:
         case STRING_LIT:
@@ -106,7 +109,7 @@ void correct_current_lexeme()
             current_expr_lexeme = ID;
             break;
         default:
-            current_expr_lexeme = isExprLexeme(current_lex_token.lexeme_type) ? current_lex_token.lexeme_type : UNDEF;
+            current_expr_lexeme = isExprLexeme(incorrect_tkn.lexeme_type) ? incorrect_tkn.lexeme_type : UNDEF;
             break;
     }
 }
@@ -115,9 +118,47 @@ void correct_current_lexeme()
 void expr_read_move()
 {
     read_move();
-    correct_current_lexeme();
+    correct_current_lexeme(current_lex_token);
 }
 
+void exprStackPushElem(Stack *expr_stack, const lex_token *lxtoken, lexeme expr_lex, char specChar)
+{
+    lex_token elem;
+    clearLexToken(&elem);
+    initLexToken(&elem);
+    if(lxtoken != NULL)//if it is NULL - push dummy instead of lex_token
+        copyLexToken(*lxtoken, &elem);
+    stackPush(expr_stack, &(expr_lexeme){elem, expr_lex, specChar});
+}
+
+void exprStackDestroy(Stack *expr_stack)
+{
+    expr_lexeme *el = stackPop(expr_stack);
+    while(el != NULL)
+    {
+        freeLexToken(&el->lxtoken);
+        free(el);
+        el = stackPop(expr_stack);
+    }
+    stackDestroy(expr_stack);
+}
+
+void printExprStack(Stack *st)
+{
+    printf("\nExpr Stack: ");
+    printf("\n-----------\n");
+    stackResetSemiPop(st);
+    expr_lexeme *elem = stackSemiPop(st);
+    while(st->semiPopCounter != 0)
+    {
+        printf("(%c)\n", elem->specChar);
+        printLexeme(elem->exp_lex);
+        printf("\n");
+        //printLexToken(elem->lxtoken);
+        elem = stackSemiPop(st);
+    }
+    printf("\n-----------\n");
+}
 //read first token of expr before use!
 //expressions end up reading next lexeme token
 //In this grammar ID1 '_' is considered as non-terminal 'E', and UNDEF is considered as '$'
@@ -125,50 +166,74 @@ void expr_read_move()
 //careful! ID can be INT_LIT,STRING_LIT or DOUBLE_LIT. Control it before semantic check
 bool EXPR()
 {
-    correct_current_lexeme();
+    expr_lexeme expr_lex_helper;
+    
     Stack *expr_stack = stackInit(sizeof(expr_lexeme));
-    expr_lexeme expr_lex_helper = {UNDEF, '\0'};
-    stackPush(expr_stack, &expr_lex_helper);//push $ on top
+    exprStackPushElem(expr_stack, NULL, UNDEF, '\0');//push $ on top
+    
+    if(previous_lex_token.lexeme_type == ID)//odd case when we don't know was it function call or expression. so we read token ahead
+    {
+        correct_current_lexeme(previous_lex_token);
+        expr_lex_helper = top(expr_stack);//let a = top. a will be $ so according to the table $ < id.
+        switch(precedence_table[expr_lex_helper.exp_lex][current_expr_lexeme])//table[a][b]
+        {
+            case le://'<'
+            {
+                exprStackPushElem(expr_stack, NULL, ELSE, le);//change a to a<  //we know we are at the very bottom and a = '$'
+                exprStackPushElem(expr_stack, &previous_lex_token, previous_lex_token.lexeme_type, '\0');//push b (b = ID)
+                //we don't read next b as it is already in current_lex_token
+                break;
+            }
+            default:
+                exprStackDestroy(expr_stack);
+                analysis_error = ANOTHER_ERROR;
+                fprintf(stderr, "WE SHOULD NEVER BE HERE\n");
+                return false;
+        }
+    }
+    
+    bool out = false;
+    correct_current_lexeme(current_lex_token);
     do
     {
         expr_lex_helper = top(expr_stack);//let a = top
         //let b (aka current_expr_lexeme) = actual input character
-        switch(precedence_table[expr_lex_helper.lex][current_expr_lexeme])
+        switch(precedence_table[expr_lex_helper.exp_lex][current_expr_lexeme])//table[a][b]
         {
             case eq://'='
             {
-                expr_lex_helper = (expr_lexeme){current_expr_lexeme, '\0'};
-                stackPush(expr_stack, &expr_lex_helper);//push b
+                exprStackPushElem(expr_stack, &current_lex_token, current_expr_lexeme, '\0');//push b
                 expr_read_move();//read next b
                 break;
             }
             case le://'<'
             {
-                Stack *tmp_st = stackInit(sizeof(expr_lexeme));
                 expr_lexeme *expr_lex_helper_2;
                 
+                Stack *tmp_st = stackInit(sizeof(expr_lexeme*));//copy 'expr_lexeme' pointers to this stack while before changing a to a<
                 expr_lexeme *elem = stackPop(expr_stack);
-                while(elem->lex != expr_lex_helper.lex)//first lexeme we find is 'a' because it is on top of the stack
+                while(elem->exp_lex != expr_lex_helper.exp_lex)//first lexeme we will find is 'a' because it is read from 'top'
                 {
                     expr_lex_helper_2 = elem;
-                    stackPush(tmp_st, expr_lex_helper_2);
-                    free(elem);
+                    stackPush(tmp_st, &expr_lex_helper_2);
                     elem = stackPop(expr_stack);
                 }
-                stackPush(expr_stack, &(expr_lexeme){ELSE, le});//change a to a<
+                //change a to a<
+                exprStackPushElem(expr_stack, &(elem->lxtoken), elem->exp_lex, '\0');//push a
+                exprStackPushElem(expr_stack, NULL, ELSE, le);//push <
                 //return characters back
-                expr_lex_helper_2 = stackPop(tmp_st);
-                while(expr_lex_helper_2 != NULL)
+                expr_lexeme **expr_lex_helper_3 = stackPop(tmp_st);//we got pointer to pointer
+                while(expr_lex_helper_3 != NULL)
                 {
-                    stackPush(expr_stack, expr_lex_helper_2);
-                    free(expr_lex_helper_2);
-                    expr_lex_helper_2 = stackPop(tmp_st);
+                    exprStackPushElem(expr_stack, &((*expr_lex_helper_3)->lxtoken), (*expr_lex_helper_3)->exp_lex, '\0');
+                    freeLexToken(&(*expr_lex_helper_3)->lxtoken);//we have to delete it because it is copied inside the push function.
+                    free(*expr_lex_helper_3);
+                    expr_lex_helper_3 = stackPop(tmp_st);
                 }
                 stackDestroy(tmp_st);
-                
-                stackPush(expr_stack, &expr_lex_helper);//push b
+    
+                exprStackPushElem(expr_stack, &current_lex_token, current_expr_lexeme, '\0');//push b
                 expr_read_move();//read next b
-
                 break;
             }
             case gr://'>'
@@ -182,11 +247,12 @@ bool EXPR()
                     int j = 1;
                     while(expr_lex_helper_2->specChar != le)
                     {
-                        if(expr_rule_table[i][j] != expr_lex_helper_2->lex)
+                        if(expr_rule_table[i][j] != expr_lex_helper_2->exp_lex)
                         {
                             rule_idx = -1;
                             break;
                         }
+                        j++;
                         expr_lex_helper_2 = stackSemiPop(expr_stack);
                     }
                     
@@ -198,36 +264,52 @@ bool EXPR()
                 if(rule_idx == -1)
                 {
                     analysis_error = SYNTAX_ERROR;
-                    stackDestroy(expr_stack);
+                    exprStackDestroy(expr_stack);
                     return false;
                 }
-                
+    
+                expr_lexeme *expr_lex_helper_3;
                 int i = 1;
                 while(expr_rule_table[rule_idx][i] != RULE_PADDING)//change '<y' to 'A' from 'A -> y' rule
-                    free(stackPop(expr_stack));
-                free(stackPop(expr_stack));//pop '<' sign
-                expr_lex_helper = (expr_lexeme){expr_rule_table[rule_idx][0], '\0'};
-                stackPush(expr_stack, &expr_lex_helper);
+                {
+                    expr_lex_helper_3 = stackPop(expr_stack);
+                    freeLexToken(&(expr_lex_helper_3->lxtoken));
+                    free(expr_lex_helper_3);
+                    i++;
+                }
+                expr_lex_helper_3 = stackPop(expr_stack);//pop '<' sign
+                freeLexToken(&(expr_lex_helper_3->lxtoken));
+                free(expr_lex_helper_3);
+    
+                exprStackPushElem(expr_stack, NULL, expr_rule_table[rule_idx][0], '\0');//push 'A'  from 'A -> y'
                 break;
             }
             default:
             {
-                stackDestroy(expr_stack);
-                analysis_error = SYNTAX_ERROR;
-                return false;
+                if(current_expr_lexeme == UNDEF)
+                {
+                    out = true;
+                }
+                else
+                {
+                    exprStackDestroy(expr_stack);
+                    analysis_error = SYNTAX_ERROR;
+                    return false;
+                }
             }
         }
-        
-        
-    } while(current_expr_lexeme != UNDEF);//UNDEF is $ so when we read
+#ifdef SYNTAX_DBG
+    printExprStack(expr_stack);
+#endif
+    }while(!out);
     
     bool itsok = true;
     stackResetSemiPop(expr_stack);
     expr_lexeme *expr_lex_helper_2 = stackSemiPop(expr_stack);
-    itsok = (expr_lex_helper_2->lex == ID1);
+    itsok = (expr_lex_helper_2->exp_lex == ID1);
     expr_lex_helper_2 = stackSemiPop(expr_stack);
-    itsok = (expr_lex_helper.lex == UNDEF);
-    stackDestroy(expr_stack);
+    itsok = (expr_lex_helper.exp_lex == UNDEF);
+    exprStackDestroy(expr_stack);
     
     return itsok;
 }
@@ -511,27 +593,15 @@ bool TYPE()
     switch(current_lex_token.lexeme_type)
     {
         case INT:
-            current_symtb_token.lit_type = INT_TYPE;
-            break;
         case DOUBLE:
-            current_symtb_token.lit_type = DOUBLE_TYPE;
-            break;
         case STRING:
-            current_symtb_token.lit_type = STRING_TYPE;
-            break;
         case NILINT:
-            current_symtb_token.lit_type = NINT_TYPE;
-            break;
         case NILDOUBLE:
-            current_symtb_token.lit_type = NDOUBLE_TYPE;
-            break;
         case NILSTRING:
-            current_symtb_token.lit_type = NSTRING_TYPE;
-            break;
+            return true;
         default:
             return false;
     }
-    return true;
 }
 
 
@@ -545,13 +615,17 @@ bool VAR_ENTITY()
 {
     if(currLexTokenIs(VAR))
     {
+        //semantic
         current_symtb_token.type = VARIABLE;
+        //semantic end
         return true;
     }
     else
     if(currLexTokenIs(LET))
     {
+        //semantic
         current_symtb_token.type = CONSTANT;
+        //semantic end
         return true;
     }
     else
@@ -566,9 +640,13 @@ bool VARDEF()
     read_move();//read ID after LET/VAR
     if(!currLexTokenIs(ID))
         return false;
+    
     //semantic
+    if(varRedefinition())
+        return false;
     symtbTokenCopyName(&current_symtb_token, current_lex_token);
     //semantic end
+    
     bool at_least_one_flag = false;
     read_move();//read ':' or '=' or another lexeme
     if(currLexTokenIs(COLON))
@@ -577,6 +655,11 @@ bool VARDEF()
         read_move();
         if(!OPT_VAR_TYPE())
             return false;
+        
+        //semantic
+        symtbTokenSetType(&current_symtb_token, current_lex_token);
+        //semantic end
+        
         read_move();//read '=' or another lexeme
     }
     
@@ -589,7 +672,7 @@ bool VARDEF()
         
         //semantic
         
-        //end
+        //semantic end
     }
     
     if(!at_least_one_flag)
@@ -1066,12 +1149,13 @@ void initPrecedenceTable()
     
     //EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, NIL, LBR1, RBR1, UNDEF
     //first lexeme - columnt index
-    const int grtbrows = 15;
-    const int grtbcols = 18;
-    int grtb_colscnt[] = {14, 14, 12, 12, 4, 4, 4, 4, 4, 4, 3, 15, 3, 2, 12};
+    const int grtbrows = 16;
+    const int grtbcols = 17;
+    int grtb_colscnt[] = {14, 14, 14, 12, 12, 4, 4, 4, 4, 4, 4, 3, 14, 3, 2, 12};
     lexeme padding = ELSE;
-    lexeme greater_table[15][18] = {
+    lexeme greater_table[16][17] = {
             { EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
+            { MUL, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
             { DIV, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
             { PLUS, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
             { MINUS, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
@@ -1082,7 +1166,7 @@ void initPrecedenceTable()
             { LEQ, QQ, RBR1, UNDEF},
             { GEQ, QQ, RBR1, UNDEF},
             { QQ, RBR1, UNDEF},
-            { ID, EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
+            { ID, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
             { NIL, RBR1, UNDEF},
             { LBR1, UNDEF},
             { RBR1, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, UNDEF}
@@ -1090,9 +1174,9 @@ void initPrecedenceTable()
     
     //EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, NIL, LBR1, RBR1, UNDEF
     const int letbrows = 14;
-    const int letbcols = 18;
+    const int letbcols = 17;
     int letb_colscnt[] = {4, 4, 6, 6, 9, 9, 8, 8, 8, 8, 15, 15, 12, 17};
-    lexeme less_table[14][18] = {
+    lexeme less_table[14][17] = {
             { MUL, EXCLAM, ID, LBR1},
             { DIV, EXCLAM, ID, LBR1},
             { PLUS, EXCLAM, MUL, DIV, ID, LBR1},
@@ -1154,8 +1238,8 @@ void init_analyzer(FILE *input_file)
     initLexToken(&current_lex_token);
     global_table = symtb_init(SYMTABLE_INIT_SIZE);
     local_tables = stackInit(sizeof(symtable));
-    current_local_level = 0;//global level
-    global_table.local_level = current_local_level;
+    current_local_level = 0;
+    global_table.local_level = 0;
     initSymtbToken(&current_called_function);
     undefined_functions = stackInit(sizeof(symtb_token));
 }
@@ -1232,7 +1316,8 @@ bool getFromLocalTables(char *id, symtb_token *token_found, symtable **table_fou
     symtb_node node = symtb_find(*local_table, id, NULL);
     if(!node.deleted)
     {
-        *token_found = node.token;
+        if(token_found != NULL)
+            *token_found = node.token;
         if(table_found != NULL)
             *table_found = local_table;
         stackResetSemiPop(local_tables);
@@ -1244,7 +1329,8 @@ bool getFromLocalTables(char *id, symtb_token *token_found, symtable **table_fou
         node = symtb_find(*local_table, id, NULL);
         if(!node.deleted)
         {
-            *token_found = node.token;
+            if(token_found != NULL)
+                *token_found = node.token;
             if(table_found != NULL)
                 *table_found = local_table;
             stackResetSemiPop(local_tables);
