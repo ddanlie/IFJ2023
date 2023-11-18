@@ -26,15 +26,14 @@ char precedence_table[LEXEMES_COUNT][LEXEMES_COUNT];
 
 #define RULE_BOX 5
 #define RULE_PADDING ELSE
-const int rules_count = 15;
+const int rules_count = 14;
 //first lexeme - expanding non terminal (example E -> (E) is {ID1, LBR1, ID1, RBR1}
 //RULE_PADDING is a breakpoint and extra padding for table to have same amount of elements in each rule
-//EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, NIL, LBR1, RBR1, UNDEF
+//EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID,  LBR1, RBR1, UNDEF
 //rules have to be reversed for work with stack
 
 lexeme expr_rule_table[][RULE_BOX] = {
-        {ID1, LBR1, ID1, RBR1,  RULE_PADDING},
-        {ID1, NIL,              RULE_PADDING, RULE_PADDING, RULE_PADDING},
+        {ID1, RBR1, ID1, LBR1,  RULE_PADDING},
         {ID1, ID,               RULE_PADDING, RULE_PADDING, RULE_PADDING},
         {ID1, ID, EXCLAM,       RULE_PADDING, RULE_PADDING},
         {ID1, ID1, MUL, ID1,    RULE_PADDING},
@@ -74,8 +73,7 @@ bool isExprLexeme(lexeme l)
         case EXCLAM: case MUL: case DIV: case PLUS:
         case MINUS: case EQ: case NEQ: case LE:
         case GT: case LEQ: case GEQ: case QQ:
-        case ID: case NIL: case LBR1:
-        case RBR1: case UNDEF:
+        case ID: case LBR1: case RBR1: case UNDEF:
         {
             return true;
         }
@@ -106,6 +104,7 @@ void correct_current_lexeme(lex_token incorrect_tkn)
         case INT_LIT:
         case STRING_LIT:
         case DOUBLE_LIT:
+        case NIL:
             current_expr_lexeme = ID;
             break;
         default:
@@ -1147,13 +1146,13 @@ void initPrecedenceTable()
         }
     }
     
-    //EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, NIL, LBR1, RBR1, UNDEF
+    //EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, LBR1, RBR1, UNDEF
     //first lexeme - columnt index
-    const int grtbrows = 16;
+    const int grtbrows = 14;
     const int grtbcols = 17;
-    int grtb_colscnt[] = {14, 14, 14, 12, 12, 4, 4, 4, 4, 4, 4, 3, 14, 3, 2, 12};
+    int grtb_colscnt[] = {14, 14, 14, 12, 12, 4, 4, 4, 4, 4, 4, 3, 14, 14};
     lexeme padding = ELSE;
-    lexeme greater_table[16][17] = {
+    lexeme greater_table[14][17] = {
             { EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
             { MUL, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
             { DIV, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
@@ -1167,30 +1166,28 @@ void initPrecedenceTable()
             { GEQ, QQ, RBR1, UNDEF},
             { QQ, RBR1, UNDEF},
             { ID, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
-            { NIL, RBR1, UNDEF},
-            { LBR1, UNDEF},
-            { RBR1, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, UNDEF}
+            { RBR1, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF}
     };
     
-    //EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, NIL, LBR1, RBR1, UNDEF
+    //EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, LBR1, RBR1, UNDEF
     const int letbrows = 14;
     const int letbcols = 17;
-    int letb_colscnt[] = {4, 4, 6, 6, 9, 9, 8, 8, 8, 8, 15, 15, 12, 17};
+    int letb_colscnt[] = {3, 4, 4, 6, 6, 8, 8, 8, 8, 8, 8, 15, 15, 15};
     lexeme less_table[14][17] = {
+            { EXCLAM, ID, LBR1 },
             { MUL, EXCLAM, ID, LBR1},
             { DIV, EXCLAM, ID, LBR1},
             { PLUS, EXCLAM, MUL, DIV, ID, LBR1},
             { MINUS, EXCLAM, MUL, DIV, ID, LBR1},
-            { EQ, EXCLAM, MUL, DIV, PLUS, MINUS, ID, NIL, LBR1},
-            { NEQ, EXCLAM, MUL, DIV, PLUS, MINUS, ID, NIL, LBR1},
+            { EQ, EXCLAM, MUL, DIV, PLUS, MINUS, ID, LBR1},
+            { NEQ, EXCLAM, MUL, DIV, PLUS, MINUS, ID, LBR1},
             { LE, EXCLAM, MUL, DIV, PLUS, MINUS, ID, LBR1},
             { GT, EXCLAM, MUL, DIV, PLUS, MINUS, ID, LBR1},
             { LEQ, EXCLAM, MUL, DIV, PLUS, MINUS, ID, LBR1},
             { GEQ, EXCLAM, MUL, DIV, PLUS, MINUS, ID, LBR1},
             { QQ, EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, LBR1},
-            { LBR1, EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, NIL},
-            { RBR1, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, UNDEF},
-            { UNDEF, EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, NIL, LBR1, RBR1}
+            { LBR1, EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, LBR1},
+            { UNDEF, EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, LBR1}
     };
     
     
