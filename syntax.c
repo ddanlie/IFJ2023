@@ -207,18 +207,17 @@ bool EXPR()
             }
             case le://'<'
             {
-                expr_lexeme *expr_lex_helper_2;
-                
-                Stack *tmp_st = stackInit(sizeof(expr_lexeme*));//copy 'expr_lexeme' pointers to this stack while before changing a to a<
+                Stack *tmp_st = stackInit(sizeof(expr_lexeme*));//copy 'expr_lexeme' pointers to this stack before changing a to a<
                 expr_lexeme *elem = stackPop(expr_stack);
                 while(elem->exp_lex != expr_lex_helper.exp_lex)//first lexeme we will find is 'a' because it is read from 'top'
                 {
-                    expr_lex_helper_2 = elem;
-                    stackPush(tmp_st, &expr_lex_helper_2);
+                    stackPush(tmp_st, &elem);
                     elem = stackPop(expr_stack);
                 }
                 //change a to a<
                 exprStackPushElem(expr_stack, &(elem->lxtoken), elem->exp_lex, '\0');//push a
+                freeLexToken(&elem->lxtoken);
+                free(elem);
                 exprStackPushElem(expr_stack, NULL, ELSE, le);//push <
                 //return characters back
                 expr_lexeme **expr_lex_helper_3 = stackPop(tmp_st);//we got pointer to pointer
@@ -227,6 +226,7 @@ bool EXPR()
                     exprStackPushElem(expr_stack, &((*expr_lex_helper_3)->lxtoken), (*expr_lex_helper_3)->exp_lex, '\0');
                     freeLexToken(&(*expr_lex_helper_3)->lxtoken);//we have to delete it because it is copied inside the push function.
                     free(*expr_lex_helper_3);
+                    free(expr_lex_helper_3);
                     expr_lex_helper_3 = stackPop(tmp_st);
                 }
                 stackDestroy(tmp_st);

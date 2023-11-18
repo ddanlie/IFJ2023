@@ -216,9 +216,13 @@ void symtbTokenSetType(symtb_token *dst, lex_token src)
 void symtbTokenCopyName(symtb_token *dst, lex_token src)
 {
     if(dst->id_name == NULL)
+    {
         dst->id_name = malloc(sizeof(char)*(src.str.len+1));
-    if(strlen(dst->id_name) < src.str.len)
+    }
+    else if(strlen(dst->id_name) < src.str.len)
+    {
         dst->id_name = realloc(dst->id_name, sizeof(char)*(src.str.len+1));
+    }
     strcpy(dst->id_name, src.str.value);
 }
 
