@@ -1,6 +1,5 @@
 #include "syntax.h"
 
-
 FILE *readfile;
 
 ret_t analysis_error;
@@ -9,20 +8,20 @@ lex_token current_lex_token;
 lex_token previous_lex_token;
 symtb_token current_symtb_token;
 symtb_token current_called_function;
-
 Stack *undefined_functions;
-
 symtable global_table;
 Stack *local_tables;
-symtable current_local_table;
+symtable temporary_table;
 int current_local_level;
-
-
 lexeme current_expr_lexeme;
-#define gr '>'
-#define le '<'
-#define eq '='
-char precedence_table[LEXEMES_COUNT][LEXEMES_COUNT];
+
+literal_type current_expr_type;
+
+bool GLOBAL_COMMAND_LIST();
+bool LOCAL_COMMAND_LIST();
+bool FUNC_COMMAND_LIST();
+bool BLOCK();
+bool LOCAL_COMMAND();
 
 #define RULE_BOX 5
 #define RULE_PADDING ELSE
@@ -31,40 +30,24 @@ const int rules_count = 14;
 //RULE_PADDING is a breakpoint and extra padding for table to have same amount of elements in each rule
 //EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID,  LBR1, RBR1, UNDEF
 //rules have to be reversed for work with stack
-
 lexeme expr_rule_table[][RULE_BOX] = {
-        {ID1, RBR1, ID1, LBR1,  RULE_PADDING},
-        {ID1, ID,               RULE_PADDING, RULE_PADDING, RULE_PADDING},
-        {ID1, ID, EXCLAM,       RULE_PADDING, RULE_PADDING},
-        {ID1, ID1, MUL, ID1,    RULE_PADDING},
-        {ID1, ID1, DIV, ID1,    RULE_PADDING},
-        {ID1, ID1, PLUS, ID1,   RULE_PADDING},
-        {ID1, ID1, MINUS, ID1,  RULE_PADDING},
-        {ID1, ID1, EQ, ID1,     RULE_PADDING},
-        {ID1, ID1, NEQ, ID1,    RULE_PADDING},
-        {ID1, ID1, LE, ID1,     RULE_PADDING},
-        {ID1, ID1, GT, ID1,     RULE_PADDING},
-        {ID1, ID1, LEQ, ID1,    RULE_PADDING},
-        {ID1, ID1, GEQ, ID1,    RULE_PADDING},
-        {ID1, ID1, QQ, ID1,     RULE_PADDING}
+        {ID1, RBR1, ID1, LBR1,  RULE_PADDING},//0
+        {ID1, ID,               RULE_PADDING, RULE_PADDING, RULE_PADDING},//1
+        {ID1, EXCLAM, ID1,      RULE_PADDING, RULE_PADDING},//2
+        {ID1, ID1, MUL, ID1,    RULE_PADDING},//3
+        {ID1, ID1, DIV, ID1,    RULE_PADDING},//4
+        {ID1, ID1, PLUS, ID1,   RULE_PADDING},//5
+        {ID1, ID1, MINUS, ID1,  RULE_PADDING},//6
+        {ID1, ID1, EQ, ID1,     RULE_PADDING},//7
+        {ID1, ID1, NEQ, ID1,    RULE_PADDING},//8
+        {ID1, ID1, LE, ID1,     RULE_PADDING},//9
+        {ID1, ID1, GT, ID1,     RULE_PADDING},//10
+        {ID1, ID1, LEQ, ID1,    RULE_PADDING},//11
+        {ID1, ID1, GEQ, ID1,    RULE_PADDING},//12
+        {ID1, ID1, QQ, ID1,     RULE_PADDING}//13
 };
 
-
-
-bool GLOBAL_COMMAND_LIST();
-bool LOCAL_COMMAND_LIST();
-bool FUNC_COMMAND_LIST();
-bool BLOCK();
-bool LOCAL_COMMAND();
-
-
-//'expr_lex' is modified 'lex_token.lexeme_type' so it can be recognised by precedence analyser
-typedef struct expr_lexeme_t
-{
-    lex_token lxtoken;
-    lexeme exp_lex;
-    char specChar;//can acquire '<' '>' or '=' chars
-} expr_lexeme;
+char precedence_table[LEXEMES_COUNT][LEXEMES_COUNT];
 
 bool isExprLexeme(lexeme l)
 {
@@ -81,6 +64,9 @@ bool isExprLexeme(lexeme l)
             return false;
     }
 }
+
+
+
 
 expr_lexeme top(Stack *st)
 {
@@ -120,14 +106,14 @@ void expr_read_move()
     correct_current_lexeme(current_lex_token);
 }
 
-void exprStackPushElem(Stack *expr_stack, const lex_token *lxtoken, lexeme expr_lex, char specChar)
+void exprStackPushElem(Stack *expr_stack, const lex_token *lxtoken, lexeme expr_lex, char specChar, literal_type type)
 {
     lex_token elem;
     clearLexToken(&elem);
     initLexToken(&elem);
     if(lxtoken != NULL)//if it is NULL - push dummy instead of lex_token
         copyLexToken(*lxtoken, &elem);
-    stackPush(expr_stack, &(expr_lexeme){elem, expr_lex, specChar});
+    stackPush(expr_stack, &(expr_lexeme){elem, expr_lex, specChar, type});
 }
 
 void exprStackDestroy(Stack *expr_stack)
@@ -165,10 +151,12 @@ void printExprStack(Stack *st)
 //careful! ID can be INT_LIT,STRING_LIT or DOUBLE_LIT. Control it before semantic check
 bool EXPR()
 {
+    current_expr_type = UNDEF_TYPE;
+    
     expr_lexeme expr_lex_helper;
     
     Stack *expr_stack = stackInit(sizeof(expr_lexeme));
-    exprStackPushElem(expr_stack, NULL, UNDEF, '\0');//push $ on top
+    exprStackPushElem(expr_stack, NULL, UNDEF, '\0', UNDEF_TYPE);//push $ on top
     
     if(previous_lex_token.lexeme_type == ID)//odd case when we don't know was it function call or expression. so we read token ahead
     {
@@ -178,8 +166,8 @@ bool EXPR()
         {
             case le://'<'
             {
-                exprStackPushElem(expr_stack, NULL, ELSE, le);//change a to a<  //we know we are at the very bottom and a = '$'
-                exprStackPushElem(expr_stack, &previous_lex_token, previous_lex_token.lexeme_type, '\0');//push b (b = ID)
+                exprStackPushElem(expr_stack, NULL, ELSE, le, UNDEF_TYPE);//change a to a<  //we know we are at the very bottom and a = '$'
+                exprStackPushElem(expr_stack, &previous_lex_token, current_expr_lexeme, '\0', UNDEF_TYPE);//push b (b = ID)
                 //we don't read next b as it is already in current_lex_token
                 break;
             }
@@ -201,7 +189,7 @@ bool EXPR()
         {
             case eq://'='
             {
-                exprStackPushElem(expr_stack, &current_lex_token, current_expr_lexeme, '\0');//push b
+                exprStackPushElem(expr_stack, &current_lex_token, current_expr_lexeme, '\0', UNDEF_TYPE);//push b
                 expr_read_move();//read next b
                 break;
             }
@@ -215,15 +203,15 @@ bool EXPR()
                     elem = stackPop(expr_stack);
                 }
                 //change a to a<
-                exprStackPushElem(expr_stack, &(elem->lxtoken), elem->exp_lex, '\0');//push a
+                exprStackPushElem(expr_stack, &(elem->lxtoken), elem->exp_lex, '\0', UNDEF_TYPE);//push a
                 freeLexToken(&elem->lxtoken);
                 free(elem);
-                exprStackPushElem(expr_stack, NULL, ELSE, le);//push <
+                exprStackPushElem(expr_stack, NULL, ELSE, le, UNDEF_TYPE);//push <
                 //return characters back
                 expr_lexeme **expr_lex_helper_3 = stackPop(tmp_st);//we got pointer to pointer
                 while(expr_lex_helper_3 != NULL)
                 {
-                    exprStackPushElem(expr_stack, &((*expr_lex_helper_3)->lxtoken), (*expr_lex_helper_3)->exp_lex, '\0');
+                    exprStackPushElem(expr_stack, &((*expr_lex_helper_3)->lxtoken), (*expr_lex_helper_3)->exp_lex, '\0', (*expr_lex_helper_3)->type);
                     freeLexToken(&(*expr_lex_helper_3)->lxtoken);//we have to delete it because it is copied inside the push function.
                     free(*expr_lex_helper_3);
                     free(expr_lex_helper_3);
@@ -231,7 +219,7 @@ bool EXPR()
                 }
                 stackDestroy(tmp_st);
     
-                exprStackPushElem(expr_stack, &current_lex_token, current_expr_lexeme, '\0');//push b
+                exprStackPushElem(expr_stack, &current_lex_token, current_expr_lexeme, '\0', UNDEF_TYPE);//push b
                 expr_read_move();//read next b
                 break;
             }
@@ -267,20 +255,40 @@ bool EXPR()
                     return false;
                 }
     
+                //semantic
+                if(!ruleTypeCheck(rule_idx, expr_stack))//we get 'current_expr_type' from here
+                {
+                    exprStackDestroy(expr_stack);
+                    return false;
+                }
+                //semantic end
+                
                 expr_lexeme *expr_lex_helper_3;
+                expr_lexeme *tmp;
                 int i = 1;
                 while(expr_rule_table[rule_idx][i] != RULE_PADDING)//change '<y' to 'A' from 'A -> y' rule
                 {
-                    expr_lex_helper_3 = stackPop(expr_stack);
-                    freeLexToken(&(expr_lex_helper_3->lxtoken));
-                    free(expr_lex_helper_3);
                     i++;
+                    expr_lex_helper_3 = stackPop(expr_stack);
+                    if(expr_rule_table[rule_idx][i] == RULE_PADDING)
+                    {
+                        tmp = expr_lex_helper_3;//we need to save the last token for the case it was ID1 -> ID rule. So later we know what type of literal ID was
+                    }
+                    else
+                    {
+                        freeLexToken(&(expr_lex_helper_3->lxtoken));
+                        free(expr_lex_helper_3);
+                    }
+                    
                 }
                 expr_lex_helper_3 = stackPop(expr_stack);//pop '<' sign
                 freeLexToken(&(expr_lex_helper_3->lxtoken));
                 free(expr_lex_helper_3);
+                
+                exprStackPushElem(expr_stack, &tmp->lxtoken, expr_rule_table[rule_idx][0], '\0', current_expr_type);//push 'A'  from 'A -> y'
     
-                exprStackPushElem(expr_stack, NULL, expr_rule_table[rule_idx][0], '\0');//push 'A'  from 'A -> y'
+                freeLexToken(&tmp->lxtoken);
+                free(tmp);
                 break;
             }
             default:
@@ -307,7 +315,7 @@ bool EXPR()
     expr_lexeme *expr_lex_helper_2 = stackSemiPop(expr_stack);
     itsok = (expr_lex_helper_2->exp_lex == ID1);
     expr_lex_helper_2 = stackSemiPop(expr_stack);
-    itsok = (expr_lex_helper.exp_lex == UNDEF);
+    itsok = (expr_lex_helper_2->exp_lex == UNDEF);
     exprStackDestroy(expr_stack);
     
     return itsok;
@@ -385,20 +393,17 @@ bool FCALL_PARAM_LIST_2()
                 return false;
     
             //find id and get type
-            symtb_token tkn;
-            initSymtbToken(&tkn);
+            symtb_token *tkn;
             if(!getFromGlobalTable(current_lex_token.str.value, &tkn))
             {
-                if(!getFromLocalTables(current_lex_token.str.value, &tkn, NULL) || !(tkn.initialized))
+                if(!getFromLocalTables(current_lex_token.str.value, &tkn, NULL) || !(tkn->initialized))
                 {
                     //undefined variable
                     analysis_error = VAR_INIT_ERROR;
                     return false;
                 }
             }
-            symtbTokenAddArgType2(&current_called_function, tkn);
-    
-            clearSymtbToken(&tkn);
+            symtbTokenAddArgType2(&current_called_function, *tkn);
             
             //FCALL_PARAM_NAME
             copyLexToken(tmp, &current_lex_token);
@@ -463,20 +468,18 @@ bool FCALL_PARAM_LIST()
             if(!TERM())//use prev as curr
                 return false;
     
-            symtb_token tkn;
-            initSymtbToken(&tkn);
+            symtb_token *tkn;
             if(!getFromGlobalTable(current_lex_token.str.value, &tkn))//use prev as curr
             {
-                if(!getFromLocalTables(current_lex_token.str.value, &tkn, NULL) || !(tkn.initialized))//use prev as curr
+                if(!getFromLocalTables(current_lex_token.str.value, &tkn, NULL) || !(tkn->initialized))//use prev as curr
                 {
                     //undefined variable
                     analysis_error = VAR_INIT_ERROR;
                     return false;
                 }
             }
-            symtbTokenAddArgType2(&current_called_function, tkn);
-    
-            clearSymtbToken(&tkn);
+            symtbTokenAddArgType2(&current_called_function, *tkn);
+            
             
             //FCALL_PARAM_NAME
             copyLexToken(tmp, &current_lex_token);//stop using prev as curr
@@ -565,6 +568,7 @@ bool ID_ASSIGN()
     else
         if(!EXPR())
             return false;
+    return true;
 }
 
 bool ASSIGN()
@@ -641,7 +645,7 @@ bool VARDEF()
         return false;
     
     //semantic
-    if(varRedefinition())
+    if(varRedefinition(current_lex_token.str.value))
         return false;
     symtbTokenCopyName(&current_symtb_token, current_lex_token);
     //semantic end
@@ -656,7 +660,7 @@ bool VARDEF()
             return false;
         
         //semantic
-        symtbTokenSetType(&current_symtb_token, current_lex_token);
+        symtbTokenSetTypefromKw(&current_symtb_token, current_lex_token);
         //semantic end
         
         read_move();//read '=' or another lexeme
@@ -664,22 +668,28 @@ bool VARDEF()
     
     if(currLexTokenIs(AS))
     {
-        at_least_one_flag = true;
         read_move();
         if(!OPT_VAR_EXPR())
             return false;
         
         //semantic
-        
+        current_symtb_token.initialized = true;
         //semantic end
+        
+        
+        at_least_one_flag = true;
+        
     }
     
     if(!at_least_one_flag)
         return false;
     
     //semantic
-    //check if variable is not redefined and add to local/global table
+    if(!vardefCompareTypeExpr(&current_symtb_token, current_expr_type))
+        return false;
     
+    addVarToFrame(current_symtb_token);
+    clearSymtbToken(&current_symtb_token);
     //semantic end
     
     return true;
@@ -888,7 +898,9 @@ bool VAR_ASSIGN()
 bool ID_COMMAND()
 {
     //previous lexeme has ID
+    //semantic
     getFromGlobalTable(previous_lex_token.str.value, &current_symtb_token);
+    //semantic
     if(currLexTokenIs(AS))
     {
         if(!VAR_ASSIGN())
@@ -1150,7 +1162,7 @@ void initPrecedenceTable()
     //first lexeme - columnt index
     const int grtbrows = 14;
     const int grtbcols = 17;
-    int grtb_colscnt[] = {14, 14, 14, 12, 12, 4, 4, 4, 4, 4, 4, 3, 14, 14};
+    int grtb_colscnt[] = {14, 14, 14, 12, 12, 4, 4, 4, 4, 4, 4, 3, 15, 15};
     lexeme padding = ELSE;
     lexeme greater_table[14][17] = {
             { EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
@@ -1165,16 +1177,15 @@ void initPrecedenceTable()
             { LEQ, QQ, RBR1, UNDEF},
             { GEQ, QQ, RBR1, UNDEF},
             { QQ, RBR1, UNDEF},
-            { ID, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
-            { RBR1, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF}
+            { ID, EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF},
+            { RBR1, EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, RBR1, UNDEF}
     };
     
     //EXCLAM, MUL, DIV, PLUS, MINUS, EQ, NEQ, LE, GT, LEQ, GEQ, QQ, ID, LBR1, RBR1, UNDEF
-    const int letbrows = 14;
+    const int letbrows = 13;
     const int letbcols = 17;
-    int letb_colscnt[] = {3, 4, 4, 6, 6, 8, 8, 8, 8, 8, 8, 15, 15, 15};
-    lexeme less_table[14][17] = {
-            { EXCLAM, ID, LBR1 },
+    int letb_colscnt[] = {4, 4, 6, 6, 8, 8, 8, 8, 8, 8, 15, 15, 15};
+    lexeme less_table[13][17] = {
             { MUL, EXCLAM, ID, LBR1},
             { DIV, EXCLAM, ID, LBR1},
             { PLUS, EXCLAM, MUL, DIV, ID, LBR1},
@@ -1290,17 +1301,26 @@ void err_exit(ret_t ret)
 //    }
 //}
 
-bool getFromGlobalTable(char *id, symtb_token *found)
+bool getFromGlobalTable(char *id, symtb_token **found)
 {
-    symtb_node node = symtb_find(global_table,  id, NULL);
-    found = NULL;
-    if(!node.deleted)
-        *found = node.token;
-    return !node.deleted;
+    symtb_node *node = symtb_find(global_table,  id, NULL);
+    if(node != NULL)
+        *found = &node->token;
+    return node != NULL;
 }
 
-bool getFromLocalTables(char *id, symtb_token *token_found, symtable **table_found)
+bool getFromLocalTables(char *id, symtb_token **token_found, symtable **table_found)
 {
+    symtb_node *node = symtb_find(temporary_table, id, NULL);
+    if(node != NULL)
+    {
+        if(token_found != NULL)
+            *token_found = &node->token;
+        if(table_found != NULL)
+            *table_found = &temporary_table;
+        return true;
+    }
+    
     stackResetSemiPop(local_tables);
     symtable *local_table = stackSemiPop(local_tables);
     if(local_table == NULL)
@@ -1309,12 +1329,11 @@ bool getFromLocalTables(char *id, symtb_token *token_found, symtable **table_fou
         table_found = NULL;
         return false;
     }
-    clearSymtbToken(&current_called_function);
-    symtb_node node = symtb_find(*local_table, id, NULL);
-    if(!node.deleted)
+    node = symtb_find(*local_table, id, NULL);
+    if(node != NULL)
     {
         if(token_found != NULL)
-            *token_found = node.token;
+            *token_found = &node->token;
         if(table_found != NULL)
             *table_found = local_table;
         stackResetSemiPop(local_tables);
@@ -1324,10 +1343,10 @@ bool getFromLocalTables(char *id, symtb_token *token_found, symtable **table_fou
     {
         local_table = (symtable*)stackSemiPop(local_tables);
         node = symtb_find(*local_table, id, NULL);
-        if(!node.deleted)
+        if(node != NULL)
         {
             if(token_found != NULL)
-                *token_found = node.token;
+                *token_found = &node->token;
             if(table_found != NULL)
                 *table_found = local_table;
             stackResetSemiPop(local_tables);

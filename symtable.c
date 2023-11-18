@@ -28,6 +28,7 @@ symtable symtb_init(int init_size)
         newTable.local_level = -1;
         for(int i = 0; i < newTable.capacity; i++)
         {
+            initSymtbToken(&newTable.symtb_arr[i].token);
             newTable.symtb_arr[i].deleted = true;
         }
     }
@@ -38,7 +39,7 @@ void symtb_clear(symtable stb)
 {
     for(int i = 0; i < stb.size; i++)
     {
-        if(! stb.symtb_arr[i].deleted)
+        if(!stb.symtb_arr[i].deleted)
             clearSymtbToken(&stb.symtb_arr[i].token);
     }
     free(stb.symtb_arr);
@@ -70,11 +71,12 @@ ret_t symtb_insert(symtable *stb, char *key, symtb_token value)
     
     if(stb->symtb_arr[index].deleted)
         stb->size++;
+    clearSymtbToken(&stb->symtb_arr[index].token);
     stb->symtb_arr[index].deleted = false;
-    stb->symtb_arr[index].token = value;
+    copySymtbToken(&stb->symtb_arr[index].token, value);
 }
 
-symtb_node symtb_find(symtable stb, char *key, int *index_found)
+symtb_node* symtb_find(symtable stb, char *key, int *index_found)
 {
     int index = hash(key, stb.capacity);
     int counter = 0;
@@ -84,24 +86,21 @@ symtb_node symtb_find(symtable stb, char *key, int *index_found)
         index = (index+1) % stb.capacity;
         counter++;
     }
-    symtb_node result;
-    result.deleted = true;
     if(counter == stb.capacity)
-        return result;//nothing found, deleted = true, token is undefined
-    result.token = stb.symtb_arr[index].token;
-    result.deleted = false;
+        return NULL;//nothing found
     if(index_found != NULL)
         *index_found = index; 
-    return result;
+    return &stb.symtb_arr[index];
 }
 
 ret_t symtb_delete(symtable *stb, char *key)
 {
     int index;
-    symtb_node elem = symtb_find(*stb, key, &index);
-    if(elem.deleted)
+    symtb_node *elem = symtb_find(*stb, key, &index);
+    if(elem->deleted)
         return -1;
     stb->symtb_arr[index].deleted = true;
+    clearSymtbToken(&stb->symtb_arr[index].token);
     stb->size--;
     return 0;
 }
@@ -134,21 +133,66 @@ void initSymtbToken(symtb_token *token)
     token->funcArgnames = NULL;
     token->funcLocalArgnames = NULL;
     token->funcArgsSize = 0;
+    token->funcArgsCapacity = 0;
     token->initialized = false;
 }
+
+void copySymtbToken(symtb_token *dst, symtb_token src)
+{
+    clearSymtbToken(dst);
+    
+    if(src.id_name != NULL)
+    {
+        dst->id_name = malloc(sizeof(char)*(strlen(src.id_name)+1));
+        strcpy(dst->id_name, src.id_name);
+    }
+    
+    dst->type = src.type;
+    dst->lit_type = src.lit_type;
+    dst->funcArgsSize = src.funcArgsSize;
+    dst->funcArgsCapacity = src.funcArgsCapacity;
+    dst->initialized = src.initialized;
+     
+    if(src.funcArgnames != NULL)//&&src.funcArgTypes != NULL && src.funcLocalArgnames != NULL
+    {
+        dst->funcArgnames = malloc(sizeof(char*)*src.funcArgsCapacity);
+        dst->funcLocalArgnames = malloc(sizeof(char*)*src.funcArgsCapacity);
+        dst->funcArgTypes = malloc(sizeof(literal_type)*src.funcArgsCapacity);
+        
+        for(int i = 0; i < src.funcArgsSize; i++)
+        {
+            if(src.funcArgnames[i] == NULL)
+                dst->funcArgnames[i] = NULL;
+            else
+            {
+                dst->funcArgnames[i] = malloc(sizeof(char)*(strlen(src.funcArgnames[i])+1));
+                strcpy(dst->funcArgnames[i], src.funcArgnames[i]);
+            }
+    
+            if(src.funcLocalArgnames[i] == NULL)
+                dst->funcLocalArgnames[i] = NULL;
+            else
+            {
+                dst->funcLocalArgnames[i] = malloc(sizeof(char)*(strlen(src.funcLocalArgnames[i])+1));
+                strcpy(dst->funcLocalArgnames[i], src.funcLocalArgnames[i]);
+            }
+    
+            dst->funcArgTypes[i] = src.funcArgTypes[i] == UNDEF_TYPE;
+        }
+    }
+}
+
 
 void clearSymtbToken(symtb_token *token)
 {
     if(token->id_name != NULL)
     {
         free(token->id_name);
-        token->id_name = NULL;
     }
     
     if(token->funcArgTypes != NULL)
     {
         free(token->funcArgTypes);
-        token->funcArgTypes = NULL;
     }
     
     for(int i = 0; i < token->funcArgsSize; i++)
@@ -159,14 +203,13 @@ void clearSymtbToken(symtb_token *token)
     if(token->funcArgnames != NULL)
     {
         free(token->funcArgnames);
-        token->funcArgnames = NULL;
     }
     if(token->funcLocalArgnames != NULL)
     {
         free(token->funcLocalArgnames);
-        token->funcLocalArgnames = NULL;
     }
     
+    initSymtbToken(token);
 }
 
 
@@ -185,7 +228,7 @@ void checkArgsSetSize(symtb_token *dst)
     }
 }
 
-void symtbTokenSetType(symtb_token *dst, lex_token src)
+void symtbTokenSetTypefromKw(symtb_token *dst, lex_token src)
 {
     switch(src.lexeme_type)
     {
@@ -228,12 +271,11 @@ void symtbTokenCopyName(symtb_token *dst, lex_token src)
 
 void symtbTokenAddArgName(symtb_token *dst,  lex_token src)
 {
-    static int args_capacity;
     if(dst->funcArgnames == NULL)
     {
-        args_capacity = 10;
-        dst->funcArgnames = malloc(sizeof(char *) * args_capacity);
-        for(int i = 0; i < args_capacity; i++)
+        dst->funcArgsCapacity = FUNC_ARGS_INIT_CAPACITY;
+        dst->funcArgnames = malloc(sizeof(char *) * FUNC_ARGS_INIT_CAPACITY);
+        for(int i = 0; i < FUNC_ARGS_INIT_CAPACITY; i++)
             dst->funcArgnames[i] = NULL;
     }
     
@@ -242,23 +284,22 @@ void symtbTokenAddArgName(symtb_token *dst,  lex_token src)
     
     checkArgsSetSize(dst);
     
-    if(dst->funcArgsSize == args_capacity)
+    if(dst->funcArgsSize == dst->funcArgsCapacity)
     {
-        args_capacity *= 2;
-        dst->funcArgnames = realloc(dst->funcArgnames, sizeof(char*)*args_capacity);
-        for(int i = dst->funcArgsSize; i < args_capacity; i++)
+        dst->funcArgsCapacity *= 2;
+        dst->funcArgnames = realloc(dst->funcArgnames, sizeof(char*)*dst->funcArgsCapacity);
+        for(int i = dst->funcArgsSize; i <  dst->funcArgsCapacity; i++)
             dst->funcArgnames[i] = NULL;
     }
 }
 
 void symtbTokenAddArgType(symtb_token *dst, lex_token src)
 {
-    static int args_capacity;
     if(dst->funcArgTypes == NULL)
     {
-        args_capacity = 10;
-        dst->funcArgTypes = malloc(sizeof(literal_type)*args_capacity);
-        for(int i = 0; i < args_capacity; i++)
+        dst->funcArgsCapacity = FUNC_ARGS_INIT_CAPACITY;
+        dst->funcArgTypes = malloc(sizeof(literal_type)*FUNC_ARGS_INIT_CAPACITY);
+        for(int i = 0; i < FUNC_ARGS_INIT_CAPACITY; i++)
             dst->funcArgTypes[i] = UNDEF_TYPE;
     }
     
@@ -287,29 +328,28 @@ void symtbTokenAddArgType(symtb_token *dst, lex_token src)
             dst->funcArgTypes[dst->funcArgsSize] = NSTRING_TYPE;
             break;
         case NIL:
-            dst->funcArgTypes[dst->funcArgsSize] = UNDEF_TYPE;
+            dst->funcArgTypes[dst->funcArgsSize] = NIL_TYPE;
             break;
         default:
             return;
     }
     checkArgsSetSize(dst);
     
-    if(dst->funcArgsSize == args_capacity)
+    if(dst->funcArgsSize == dst->funcArgsCapacity)
     {
-        args_capacity *= 2;
-        dst->funcArgTypes = realloc(dst->funcArgTypes, sizeof(literal_type) * args_capacity);
+        dst->funcArgsCapacity *= 2;
+        dst->funcArgTypes = realloc(dst->funcArgTypes, sizeof(literal_type) * dst->funcArgsCapacity);
     }
 }
 
 
 void symtbTokenAddArgType2(symtb_token *dst, symtb_token src)
 {
-    static int args_capacity;
     if(dst->funcArgTypes == NULL)
     {
-        args_capacity = 10;
-        dst->funcArgTypes = malloc(sizeof(literal_type)*args_capacity);
-        for(int i = 0; i < args_capacity; i++)
+        dst->funcArgsCapacity = FUNC_ARGS_INIT_CAPACITY;
+        dst->funcArgTypes = malloc(sizeof(literal_type)*FUNC_ARGS_INIT_CAPACITY);
+        for(int i = 0; i < FUNC_ARGS_INIT_CAPACITY; i++)
             dst->funcArgTypes[i] = UNDEF_TYPE;
     }
     
@@ -317,21 +357,20 @@ void symtbTokenAddArgType2(symtb_token *dst, symtb_token src)
 
     checkArgsSetSize(dst);
     
-    if(dst->funcArgsSize == args_capacity)
+    if(dst->funcArgsSize == dst->funcArgsCapacity)
     {
-        args_capacity *= 2;
-        dst->funcArgTypes = realloc(dst->funcArgTypes, sizeof(literal_type) * args_capacity);
+        dst->funcArgsCapacity *= 2;
+        dst->funcArgTypes = realloc(dst->funcArgTypes, sizeof(literal_type) * dst->funcArgsCapacity);
     }
 }
 
 void symtbTokenAddLocalArgName(symtb_token *dst,  lex_token src)
 {
-    static int args_capacity;
     if(dst->funcLocalArgnames == NULL)
     {
-        args_capacity = 10;
-        dst->funcLocalArgnames = malloc(sizeof(char *) * args_capacity);
-        for(int i = 0; i < args_capacity; i++)
+        dst->funcArgsCapacity = FUNC_ARGS_INIT_CAPACITY;
+        dst->funcLocalArgnames = malloc(sizeof(char *) * FUNC_ARGS_INIT_CAPACITY);
+        for(int i = 0; i < FUNC_ARGS_INIT_CAPACITY; i++)
             dst->funcLocalArgnames[i] = NULL;
     }
     
@@ -340,11 +379,11 @@ void symtbTokenAddLocalArgName(symtb_token *dst,  lex_token src)
     
     checkArgsSetSize(dst);
     
-    if(dst->funcArgsSize == args_capacity)
+    if(dst->funcArgsSize == dst->funcArgsCapacity)
     {
-        args_capacity *= 2;
-        dst->funcLocalArgnames = realloc(dst->funcLocalArgnames, sizeof(char*)*args_capacity);
-        for(int i = dst->funcArgsSize; i < args_capacity; i++)
+        dst->funcArgsCapacity *= 2;
+        dst->funcLocalArgnames = realloc(dst->funcLocalArgnames, sizeof(char*)*dst->funcArgsCapacity);
+        for(int i = dst->funcArgsSize; i < dst->funcArgsCapacity; i++)
             dst->funcLocalArgnames[i] = NULL;
     }
 }

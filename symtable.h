@@ -2,6 +2,7 @@
 #ifndef SYMTABLE_H
 #define SYMTABLE_H
 
+#define FUNC_ARGS_INIT_CAPACITY 10
 #define SYMTABLE_INIT_SIZE 10
 #define HASHNUM 5381
 
@@ -17,6 +18,8 @@ typedef enum literal_type_t
 {
     UNDEF_TYPE, INT_TYPE, STRING_TYPE, DOUBLE_TYPE,
     NINT_TYPE, NSTRING_TYPE, NDOUBLE_TYPE, //nillable int/string/double
+    NINT_NIL_TYPE, NSTRING_NIL_TYPE, NDOUBLE_NIL_TYPE,
+    NIL_TYPE,
     VOID_TYPE
 } literal_type;
 
@@ -31,6 +34,7 @@ typedef struct symtb_token_t
     char **funcArgnames;//array order corresponds to funcArgs //array and its elements are always pointers to a heap so they can be freed
     char **funcLocalArgnames;//array order corresponds to funcArgs //array and its elements are always pointers to a heap so they can be freed
     int funcArgsSize;
+    int funcArgsCapacity;
     bool initialized;//VARIABLE: if variable was initialized with some value or not
     //FUNCTION: if function call was found this variable sets to false, otherwise if complete function definition was found - true
 } symtb_token;
@@ -64,7 +68,8 @@ ret_t symtb_insert(symtable *stb, char *key, symtb_token value);//pass a pointer
 
 //returs: symtb_node. if nothing is found, deleted flag of symtb_node is true and token is undefined
 //idnex_found parameter is optional and can be NULL. If nothing found this variable is undefined
-symtb_node symtb_find(symtable stb, char *key, int *index_found);//pass by value (there is nothing heavy in this structure)
+//DO NOT free returned symtb_node
+symtb_node* symtb_find(symtable stb, char *key, int *index_found);//pass by value (there is nothing heavy in this structure)
 
 //returs: -1 - error/no element found, 0 - deleted
 ret_t symtb_delete(symtable *stb, char *key);//pass a pointer because we need to change a size and capacity of a table
@@ -76,6 +81,12 @@ void symtb_print(symtable stb);
 
 void initSymtbToken(symtb_token *token);
 void clearSymtbToken(symtb_token *token);
+void copySymtbToken(symtb_token *dst, symtb_token src);
+
+
+//set type from keyword
+void symtbTokenSetTypefromKw(symtb_token *dst, lex_token src);
+
 void symtbTokenCopyName(symtb_token *dst, lex_token src);
 void checkArgsSetSize(symtb_token *dst);
 void symtbTokenSetType(symtb_token *dst, lex_token src);
