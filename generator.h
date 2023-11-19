@@ -16,6 +16,7 @@ char *get_literal_name(lex_token lt);
 //returned pointer has to be freed
 char* generate_expr_var_name();
 char* generate_label();
+void pass_vars_to_global();
 
 
 

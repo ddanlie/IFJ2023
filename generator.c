@@ -1,6 +1,6 @@
 #include "generator.h"
 
-
+char *lowlevel_var_format = "%s@&_%s$%d_&";
 char *helpvar1 = "GF@$%optempvar%$";
 char *helpvar2 = "GF@$%optempvar2%$";
 
@@ -32,11 +32,11 @@ void addr3op(char *op, char *res, char *a1, char *a2)
     }
     else if(0 == strcmp(op, "PLUS"))
     {
-        printf("PLUS %s %s %s\n", res, a1, a2);
+        printf("ADD %s %s %s\n", res, a1, a2);
     }
     else if(0 == strcmp(op, "MINUS"))
     {
-        printf("MINUS %s %s %s\n", res, a1, a2);
+        printf("SUB %s %s %s\n", res, a1, a2);
     }
     else if(0 == strcmp(op, "MUL"))
     {
@@ -65,13 +65,13 @@ void addr3op(char *op, char *res, char *a1, char *a2)
     }
     else if(0 == strcmp(op, "LTE"))
     {
-        printf("LE %s %s %s\n", helpvar1, a1, a2);
+        printf("LT %s %s %s\n", helpvar1, a1, a2);
         printf("EQ %s %s %s\n", helpvar2, a1, a2);
         printf("OR %s %s %s\n", res, helpvar1, helpvar2);
     }
     else if(0 == strcmp(op, "GTE"))
     {
-        printf("GE %s %s %s\n", helpvar1, a1, a2);
+        printf("GT %s %s %s\n", helpvar1, a1, a2);
         printf("EQ %s %s %s\n", helpvar2, a1, a2);
         printf("OR %s %s %s\n", res, helpvar1, helpvar2);
     }
@@ -132,13 +132,13 @@ char *get_var_name(char *var)
         level_name_addition = table->local_level;
     }
     
-    if(level_name_addition != -1)
-    {
-        sprintf(buf, "%s@%s$%d", frame, var, level_name_addition);
-    }
-    else
+    if(level_name_addition == -1)
     {
         sprintf(buf, "%s@%s", frame, var);
+    }
+    else//variable from lower levels
+    {
+        sprintf(buf, lowlevel_var_format, frame, var, level_name_addition);
     }
     
     char *res = malloc(sizeof(char)* (strlen(buf)+1));
@@ -190,4 +190,72 @@ char* generate_label()
     strcpy(res, buf);
     counter++;
     return res;
+}
+
+void convert_string(const char *in_str, char *out_str) {
+    int i, j = 0;
+    for (i = 0; in_str[i] != '\0'; i++)
+    {
+        if (in_str[i] == ' ')
+        {
+            sprintf(&out_str[j], "\032");
+            j += 4;
+        }
+        else if (in_str[i] == '\\')
+        {
+            sprintf(&out_str[j], "\\092");
+            j += 4;
+        }
+        else if (in_str[i] == '\n')
+        {
+            sprintf(&out_str[j], "\\010");
+            j += 4;
+        }
+        else if (in_str[i] == '#')
+        {
+            sprintf(&out_str[j], "\035");
+            j += 4;
+        }
+        else {
+            out_str[j] = in_str[i];
+            j++;
+    }
+}
+out_str[j] = '\0';
+}
+
+//see get_var_name()
+void pass_vars_to_global()
+{
+    int local_lvl = temporary_table.local_level;
+    for(int i = 0; i < temporary_table.capacity; i++)
+    {
+        if(temporary_table.symtb_arr[i].deleted)
+            continue;
+        
+        char codename[MAX_VAR_NAME_LENGTH];
+        sprintf(codename, lowlevel_var_format, "GF", temporary_table.symtb_arr[i].token.id_name, local_lvl);
+        //printf("-----------codename = %s---------\n", codename);
+        char *tfname = get_var_name(temporary_table.symtb_arr[i].token.id_name);
+        //printf("-----------tfname = %s---------\n", tfname);
+        symtb_token *found;
+        if(getFromGlobalTable(codename, &found))
+        {
+            move(codename, tfname);
+        }
+        else
+        {
+            defvar(codename);
+            move(codename, tfname);
+            
+            symtb_token defined;
+            initSymtbToken(&defined);
+            copySymtbToken(&defined, temporary_table.symtb_arr[i].token);
+            symtbTokenCopyName2(&defined, codename);
+            symtb_insert(&global_table, codename, defined);
+            clearSymtbToken(&defined);
+        }
+        free(tfname);
+
+    }
 }

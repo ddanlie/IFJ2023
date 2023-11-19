@@ -124,8 +124,11 @@ void exprStackDestroy(Stack *expr_stack)
     while(el != NULL)
     {
         freeLexToken(&el->lxtoken);
-        free(el->generator_tmp_name);
-        el->generator_tmp_name = NULL;
+        if(el->generator_tmp_name != NULL)
+        {
+            free(el->generator_tmp_name);
+            el->generator_tmp_name = NULL;
+        }
         free(el);
         el = stackPop(expr_stack);
     }
@@ -171,7 +174,7 @@ bool EXPR()
         {
             case le://'<'
             {
-                exprStackPushElem(expr_stack, NULL, ELSE, le, UNDEF_TYPE, "");//change a to a<  //we know we are at the very bottom and a = '$'
+                exprStackPushElem(expr_stack, NULL, ELSE, le, UNDEF_TYPE, NULL);//change a to a<  //we know we are at the very bottom and a = '$'
                 exprStackPushElem(expr_stack, &previous_lex_token, current_expr_lexeme, '\0', UNDEF_TYPE, generate_expr_var_name());//push b (b = ID)
                 //we don't read next b as it is already in current_lex_token
                 break;
@@ -210,11 +213,6 @@ bool EXPR()
                 //change a to a<
                 exprStackPushElem(expr_stack, &(elem->lxtoken), elem->exp_lex, '\0', UNDEF_TYPE, elem->generator_tmp_name);//push a
                 freeLexToken(&elem->lxtoken);
-                if(elem->generator_tmp_name != NULL)
-                {
-                    free(elem->generator_tmp_name);
-                    elem->generator_tmp_name = NULL;
-                }
                 free(elem);
                 exprStackPushElem(expr_stack, NULL, ELSE, le, UNDEF_TYPE, NULL);//push <
                 //return characters back
@@ -224,11 +222,6 @@ bool EXPR()
                     exprStackPushElem(expr_stack, &((*expr_lex_helper_3)->lxtoken),
                                       (*expr_lex_helper_3)->exp_lex, '\0', (*expr_lex_helper_3)->type, (*expr_lex_helper_3)->generator_tmp_name);
                     freeLexToken(&(*expr_lex_helper_3)->lxtoken);//we have to delete it because it is copied inside the push function.
-                    if((*expr_lex_helper_3)->generator_tmp_name != NULL)
-                    {
-                        free((*expr_lex_helper_3)->generator_tmp_name);
-                        (*expr_lex_helper_3)->generator_tmp_name = NULL;
-                    }
                     free(*expr_lex_helper_3);
                     free(expr_lex_helper_3);
                     expr_lex_helper_3 = stackPop(tmp_st);
@@ -955,6 +948,10 @@ bool FUNC_BLOCK()
     temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
     //semantic end
     
+    //generator
+    printf("CREATEFRAME\n");
+    //generator end
+    
     return true;
 }
 
@@ -1374,11 +1371,21 @@ bool LOCAL_COMMAND_LIST()
 
 bool BLOCK()
 {
-    //semantic
-    if(current_local_level != 0)
-        stackPush(local_tables, &temporary_table);
-    else
+    if(current_local_level == 0)
+    {
         symtb_clear(temporary_table);
+    }
+    else
+    {
+        stackPush(local_tables, &temporary_table);
+        //generator
+        pass_vars_to_global();
+        printf("PUSHFRAME\n");
+        printf("CREATEFRAME\n");
+        //generator end
+    }
+    
+    //semantic
     temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
     current_local_level += 1;
     temporary_table.local_level = current_local_level;
@@ -1392,6 +1399,8 @@ bool BLOCK()
         later = stackPop(add_later_stack);
     }
     //semantic end
+    
+
     
     if(!LOCAL_COMMAND_LIST())
         return false;
@@ -1407,6 +1416,17 @@ bool BLOCK()
     else
         temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
     //semantic end
+    
+    //generator
+    if(current_local_level == 0)
+    {
+        printf("CREATEFRAME\n");
+    }
+    else
+    {
+        printf("POPFRAME\n");
+    }
+    //generator end
     return true;
 }
 
