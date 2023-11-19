@@ -8,8 +8,11 @@ bool varRedefinition(char *var)
         symtb_token *found;
         if(getFromGlobalTable(var, &found))
         {
-            analysis_error = UNDEF_ERROR;
-            return true;
+            if(found->type == VARIABLE || found->type == CONSTANT)
+            {
+                analysis_error = UNDEF_ERROR;
+                return true;
+            }
         }
     }
     else
@@ -28,13 +31,33 @@ bool varRedefinition(char *var)
     return false;
 }
 
+bool funcRedefinition(char *func)
+{
+    if(current_local_level == 0)
+    {
+        symtb_token *found;
+        if(getFromGlobalTable(func, &found))
+        {
+            if(found->type == FUNCTION)
+            {
+                analysis_error = UNDEF_ERROR;
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+
 
 bool isVarDefined(char *var)
 {
     symtb_token *found;
     if(getFromGlobalTable(var, &found))
     {
-        return true;
+        if(found->lit_type == VARIABLE)
+            return true;
     }
     
     symtable *table_found;
@@ -57,7 +80,8 @@ bool isFuncDefined(char *func)
     symtb_token *found;
     if(getFromGlobalTable(func, &found))
     {
-        return true;
+        if(found->type == FUNCTION)
+            return true;
     }
     analysis_error = UNDEF_ERROR;
     return false;
@@ -213,7 +237,7 @@ bool vardefCompareTypeExpr(symtb_token *var, literal_type expr_type)
             {
                 return true;
             }
-            else if(var->lit_type == DOUBLE_TYPE && expr_type == INT_TYPE)
+            else if(var->lit_type == DOUBLE_TYPE && expr_type == DOUBLE_TYPE)
             {
                 return true;
             }
@@ -505,3 +529,55 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
     stackResetSemiPop(expr_stack);
     return true;
 }
+
+
+bool resolveUndefinedFunctions(Stack *undefs, symtb_token defined)
+{
+    stackResetSemiPop(undefs);
+    symtb_token *undef = stackSemiPop(undefs);
+    while(undef != NULL)
+    {
+        if(0 == strcmp(undef->id_name, defined.id_name))
+        {
+            #ifdef SEM_DBG
+                  printf("Undefined function found\n");
+            #endif
+            
+            if(!compareUndefinedFunction(defined, *undef))
+            {
+                return false;
+            }
+            else
+            {
+                #ifdef SEM_DBG
+                    printf("Undefined function resolved\n");
+                #endif
+                stackResetSemiPop(undefs);
+                return true;
+            }
+        }
+        undef = stackSemiPop(undefs);
+    }
+    
+    
+    stackResetSemiPop(undefs);
+    return true;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

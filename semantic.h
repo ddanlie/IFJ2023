@@ -3,12 +3,14 @@
 
 #include "syntax.h"
 
-//checks if variable ID is redefined (including function ID)
 bool varRedefinition(char *var);
+bool funcRedefinition(char *func);
 bool isVarDefined(char *var);
 bool isFuncDefined(char *func);
 bool compareFunctionsSignature(symtb_token f1, symtb_token f2);
 bool compareUndefinedFunction(symtb_token f1, symtb_token f2);
+//returned false -> found undefined function and signature is not compatible
+bool resolveUndefinedFunctions(Stack *undefs, symtb_token defined);
 bool compareIDtoFuncReturn(symtb_token var, symtb_token f);
 bool setLiteralType(literal_type *type, lex_token lxtoken, bool checkInit);
 //this function crucially depends on the `expr_rule_table` and rule order in it

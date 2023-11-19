@@ -177,7 +177,7 @@ void copySymtbToken(symtb_token *dst, symtb_token src)
                 strcpy(dst->funcLocalArgnames[i], src.funcLocalArgnames[i]);
             }
     
-            dst->funcArgTypes[i] = src.funcArgTypes[i] == UNDEF_TYPE;
+            dst->funcArgTypes[i] = src.funcArgTypes[i];
         }
     }
 }
@@ -221,7 +221,8 @@ void checkArgsSetSize(symtb_token *dst)
         return;
     
     if(dst->funcLocalArgnames[dst->funcArgsSize] != NULL
-        && dst->funcArgnames[dst->funcArgsSize] != NULL)
+        && dst->funcArgnames[dst->funcArgsSize] != NULL
+        && dst->funcArgTypes[dst->funcArgsSize] != UNDEF_TYPE)
     {
         dst->funcArgsSize++;
     }

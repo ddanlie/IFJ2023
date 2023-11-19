@@ -298,6 +298,10 @@ bool EXPR()
                 {
                     out = true;
                 }
+                else if(eoln_flag)//go finish rule wrap with >
+                {
+                    current_expr_lexeme = UNDEF;
+                }
                 else
                 {
                     exprStackDestroy(expr_stack);
@@ -314,9 +318,11 @@ bool EXPR()
     bool itsok = true;
     stackResetSemiPop(expr_stack);
     expr_lexeme *expr_lex_helper_2 = stackSemiPop(expr_stack);
-    itsok = (expr_lex_helper_2->exp_lex == ID1);
+    if(expr_lex_helper_2->exp_lex != ID1)
+        itsok = false;
     expr_lex_helper_2 = stackSemiPop(expr_stack);
-    itsok = (expr_lex_helper_2->exp_lex == UNDEF);
+    if(expr_lex_helper_2->exp_lex != UNDEF)
+        itsok = false;
     exprStackDestroy(expr_stack);
     
     return itsok;
@@ -382,32 +388,38 @@ bool FCALL_PARAM_LIST_2()
             initLexToken(&tmp);
             //dummy end
             
-            if(!FCALL_PARAM_NAME())//function reads extra lexeme because of grammar error
+            if(!FCALL_PARAM_NAME())//function reads extra lexeme because of grammar mistake
                 return false;
             
             //FCALL_PARAM_NAME
-            copyLexToken(current_lex_token, &tmp);
-            copyLexToken(previous_lex_token, &current_lex_token);
+//            copyLexToken(current_lex_token, &tmp);
+//            copyLexToken(previous_lex_token, &current_lex_token);
             //FCALL_PARAM_NAME end
     
             if(!TERM())//does not use previous token!
                 return false;
     
             //find id and get type
-            symtb_token *tkn;
-            if(!getFromGlobalTable(current_lex_token.str.value, &tkn))
+            if(currLexTokenIs(ID))
             {
-                if(!getFromLocalTables(current_lex_token.str.value, &tkn, NULL) || !(tkn->initialized))
+                symtb_token *tkn;
+                if(!getFromGlobalTable(current_lex_token.str.value, &tkn))
                 {
-                    //undefined variable
-                    analysis_error = VAR_INIT_ERROR;
-                    return false;
+                    if(!getFromLocalTables(current_lex_token.str.value, &tkn, NULL) || !(tkn->initialized))
+                    {
+                        //undefined variable
+                        analysis_error = VAR_INIT_ERROR;
+                        return false;
+                    }
                 }
+                symtbTokenAddArgType2(&current_called_function, *tkn);
             }
-            symtbTokenAddArgType2(&current_called_function, *tkn);
-            
+            else
+            {
+                symtbTokenAddArgType(&current_called_function, current_lex_token);
+            }
             //FCALL_PARAM_NAME
-            copyLexToken(tmp, &current_lex_token);
+            //copyLexToken(tmp, &current_lex_token);
             freeLexToken(&tmp);
             //FCALL_PARAM_NAME end
             break;
@@ -430,13 +442,13 @@ bool FCALL_PARAM_LIST_2()
         
             freeLexToken(&id1lexemeDummy);
     
-            read_move();//see FCALL_PARAM_NAME(). we need to read extra lexeme
+            //read_move();//see FCALL_PARAM_NAME(). we need to read extra lexeme
             break;
         }
         default:
             return false;
     }
-    //read_move();
+    read_move();
     return FCALL_PARAM_LIST_2();
 }
 
@@ -463,27 +475,34 @@ bool FCALL_PARAM_LIST()
             if(!FCALL_PARAM_NAME())
                 return false;
             
-            copyLexToken(current_lex_token, &tmp);
-            copyLexToken(previous_lex_token, &current_lex_token); //set prev as curr
+//            copyLexToken(current_lex_token, &tmp);
+//            copyLexToken(previous_lex_token, &current_lex_token); //set prev as curr
     
             if(!TERM())//use prev as curr
                 return false;
     
-            symtb_token *tkn;
-            if(!getFromGlobalTable(current_lex_token.str.value, &tkn))//use prev as curr
+            if(currLexTokenIs(ID))
             {
-                if(!getFromLocalTables(current_lex_token.str.value, &tkn, NULL) || !(tkn->initialized))//use prev as curr
+                symtb_token *tkn;
+                if(!getFromGlobalTable(current_lex_token.str.value, &tkn))//use prev as curr
                 {
-                    //undefined variable
-                    analysis_error = VAR_INIT_ERROR;
-                    return false;
+                    if(!getFromLocalTables(current_lex_token.str.value, &tkn, NULL) || !(tkn->initialized))//use prev as curr
+                    {
+                        //undefined variable
+                        analysis_error = VAR_INIT_ERROR;
+                        return false;
+                    }
                 }
+                symtbTokenAddArgType2(&current_called_function, *tkn);
             }
-            symtbTokenAddArgType2(&current_called_function, *tkn);
+            else
+            {
+                symtbTokenAddArgType(&current_called_function, current_lex_token);
+            }
             
             
             //FCALL_PARAM_NAME
-            copyLexToken(tmp, &current_lex_token);//stop using prev as curr
+            //copyLexToken(tmp, &current_lex_token);//stop using prev as curr
             freeLexToken(&tmp);
             //FCALL_PARAM_NAME end
             break;
@@ -506,13 +525,13 @@ bool FCALL_PARAM_LIST()
     
             freeLexToken(&id1lexemeDummy);
             
-            read_move();//see FCALL_PARAM_NAME(). we need to read extra lexeme
+            //read_move();//see FCALL_PARAM_NAME(). we need to read extra lexeme
             break;
         }
         default:
             return false;
     }
-   // read_move();//read ',' or ')' or another
+    read_move();//read ',' or ')' or another
     if(!FCALL_PARAM_LIST_2())
         return false;
     
@@ -549,7 +568,12 @@ bool FUNC_CALL()
             current_called_function.lit_type = VOID_TYPE;
         else//it is ID = f(...)
             current_called_function.lit_type = current_symtb_token.lit_type;
-        stackPush(undefined_functions, &current_called_function);
+        
+        symtb_token topush;
+        initSymtbToken(&topush);
+        copySymtbToken(&topush, current_called_function);
+        stackPush(undefined_functions, &topush);
+        clearSymtbToken(&current_called_function);
     }
     //semantic end
     
@@ -733,6 +757,8 @@ bool PARAM_LIST_2()
     read_move();
     if(!PARAM_LIST_2())
         return false;
+    
+    return true;
 }
 
 bool PARAM_LIST()
@@ -838,6 +864,8 @@ bool FUNC_BLOCK()
     //semantic
     stackPush(local_tables, &temporary_table);
     temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
+    current_local_level += 1;
+    temporary_table.local_level = current_local_level;
     //semantic end
     
     if(!currLexTokenIs(LBR2))
@@ -849,6 +877,7 @@ bool FUNC_BLOCK()
         return false;
     
     //semantic
+    current_local_level -= 1;
     symtb_clear(temporary_table);
     temporary_table = *(symtable*)stackPop(local_tables);
     //semantic end
@@ -935,10 +964,11 @@ bool FUNCDEF()
         return false;
     
     //semantic
-    if(varRedefinition(current_lex_token.str.value))
+    if(funcRedefinition(current_lex_token.str.value))
         return false;
     
     clearSymtbToken(&current_defined_function);
+    current_defined_function.type = FUNCTION;
     symtbTokenCopyName(&current_defined_function, current_lex_token);
     //semantic end
     
@@ -958,6 +988,8 @@ bool FUNCDEF()
         return false;
     
     //semantic
+    if(!resolveUndefinedFunctions(undefined_functions, current_defined_function))
+        return false;
     addVarToFrame(current_defined_function);
     //semantic end
     
@@ -992,17 +1024,31 @@ bool ID_COMMAND()
             analysis_error = VAR_INIT_ERROR;
             return false;
         }
+        if(foundvar->type == CONSTANT)
+        {
+            analysis_error = SEMANTIC_OTHER_ERROR;
+            return false;
+        }
         copySymtbToken(&current_symtb_token, *foundvar);
+    
+        clearSymtbToken(&current_called_function);
         //semantic end
         
+        read_move();
         if(!VAR_ASSIGN())
             return false;
         
         //semantic
-        if(!compareIDtoFuncReturn(current_symtb_token, current_called_function))
-            return false;
+        if(current_called_function.type == UNDEF_ID)//it was expression we assigned to variable
+            vardefCompareTypeExpr(&current_symtb_token, current_expr_type);
+        else//it was function call
+        {
+            if(!compareIDtoFuncReturn(current_symtb_token, current_called_function))
+                return false;
+            clearSymtbToken(&current_called_function);
+        }
         clearSymtbToken(&current_symtb_token);
-        clearSymtbToken(&current_called_function);
+
         //semantic end
     }
     else if(currLexTokenIs(LBR1))
@@ -1166,6 +1212,8 @@ bool BLOCK()
     //semantic
     stackPush(local_tables, &temporary_table);
     temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
+    current_local_level += 1;
+    temporary_table.local_level = current_local_level;
     //semantic end
     
     if(!LOCAL_COMMAND_LIST())
@@ -1174,6 +1222,7 @@ bool BLOCK()
         return false;
     
     //semantic
+    current_local_level -= 1;
     symtb_clear(temporary_table);
     temporary_table = *(symtable*)stackPop(local_tables);
     //semantic end
@@ -1372,26 +1421,20 @@ ret_t prepared_return(ret_t ret)
     symtb_clear(temporary_table);
     stackResetSemiPop(local_tables);
     symtable *local_table = stackSemiPop(local_tables);
-    if(local_table != NULL)
+    while(local_table != NULL)
     {
-        while(local_tables->semiPopCounter != 0)
-        {
-            symtb_clear(*local_table);
-            local_table = stackSemiPop(local_tables);
-        }
+        symtb_clear(*local_table);
+        local_table = stackSemiPop(local_tables);
     }
     stackDestroy(local_tables);
     current_local_level = 0;
     //we suppose that all undefined functions (symtb_tokens) are freed and stack is empty. We free them only in an emerency
     stackResetSemiPop(undefined_functions);
     symtb_token *undef_func = stackSemiPop(undefined_functions);
-    if(undef_func != NULL)
+    while(undef_func != NULL)
     {
-        while(undefined_functions->semiPopCounter != 0)
-        {
-            clearSymtbToken(undef_func);
-            undef_func = stackSemiPop(undefined_functions);
-        }
+        clearSymtbToken(undef_func);
+        undef_func = stackSemiPop(undefined_functions);
     }
     stackDestroy(undefined_functions);
     return ret;
@@ -1416,7 +1459,8 @@ bool getFromEverywhere(char *id, symtb_token **found, symtable **table_found)
 {
     if(getFromGlobalTable(id, found))
     {
-        *table_found = &global_table;
+        if(table_found != NULL)
+            *table_found = &global_table;
         return true;
     }
     else
@@ -1448,27 +1492,44 @@ bool getFromLocalTables(char *id, symtb_token **token_found, symtable **table_fo
         return true;
     }
     
+//    stackResetSemiPop(local_tables);
+//    symtable *local_table = stackSemiPop(local_tables);
+//    if(local_table == NULL)
+//    {
+//        token_found = NULL;
+//        table_found = NULL;
+//        return false;
+//    }
+//    node = symtb_find(*local_table, id, NULL);
+//    if(node != NULL)
+//    {
+//        if(token_found != NULL)
+//            *token_found = &node->token;
+//        if(table_found != NULL)
+//            *table_found = local_table;
+//        stackResetSemiPop(local_tables);
+//        return true;
+//    }
+//    while(node != NULL)
+//    {
+//        local_table = (symtable*)stackSemiPop(local_tables);
+//        if(node != NULL)
+//        {
+//            if(token_found != NULL)
+//                *token_found = &node->token;
+//            if(table_found != NULL)
+//                *table_found = local_table;
+//            stackResetSemiPop(local_tables);
+//            return true;
+//        }
+//        node = symtb_find(*local_table, id, NULL);
+//    }
+
     stackResetSemiPop(local_tables);
     symtable *local_table = stackSemiPop(local_tables);
-    if(local_table == NULL)
+    
+    while(local_table != NULL)
     {
-        token_found = NULL;
-        table_found = NULL;
-        return false;
-    }
-    node = symtb_find(*local_table, id, NULL);
-    if(node != NULL)
-    {
-        if(token_found != NULL)
-            *token_found = &node->token;
-        if(table_found != NULL)
-            *table_found = local_table;
-        stackResetSemiPop(local_tables);
-        return true;
-    }
-    while(local_tables->semiPopCounter != 0)
-    {
-        local_table = (symtable*)stackSemiPop(local_tables);
         node = symtb_find(*local_table, id, NULL);
         if(node != NULL)
         {
@@ -1479,8 +1540,13 @@ bool getFromLocalTables(char *id, symtb_token **token_found, symtable **table_fo
             stackResetSemiPop(local_tables);
             return true;
         }
+        local_table = (symtable*)stackSemiPop(local_tables);
     }
     
+    if(token_found != NULL)
+        *token_found = NULL;
+    if(table_found != NULL)
+        *table_found = NULL;
     return false;
 }
 
