@@ -269,6 +269,22 @@ void symtbTokenCopyName(symtb_token *dst, lex_token src)
     strcpy(dst->id_name, src.str.value);
 }
 
+
+void symtbTokenCopyName2(symtb_token *dst, const char *name)
+{
+    unsigned long long l = strlen(name);
+    if(dst->id_name == NULL)
+    {
+        dst->id_name = malloc(sizeof(char)*(l+1));
+    }
+    else if(strlen(dst->id_name) < l)
+    {
+        dst->id_name = realloc(dst->id_name, sizeof(char)*(l+1));
+    }
+    strcpy(dst->id_name, name);
+}
+
+
 void symtbTokenAddArgName(symtb_token *dst,  lex_token src)
 {
     if(dst->funcArgnames == NULL)

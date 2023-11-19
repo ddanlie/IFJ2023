@@ -20,7 +20,8 @@ typedef enum literal_type_t
     NINT_TYPE, NSTRING_TYPE, NDOUBLE_TYPE, //nillable int/string/double
     NINT_NIL_TYPE, NSTRING_NIL_TYPE, NDOUBLE_NIL_TYPE,
     NIL_TYPE,
-    VOID_TYPE
+    VOID_TYPE,
+    BOOL_TYPE
 } literal_type;
 
 
@@ -88,6 +89,7 @@ void copySymtbToken(symtb_token *dst, symtb_token src);
 void symtbTokenSetTypefromKw(symtb_token *dst, lex_token src);
 
 void symtbTokenCopyName(symtb_token *dst, lex_token src);
+void symtbTokenCopyName2(symtb_token *dst, const char *name);
 void checkArgsSetSize(symtb_token *dst);
 //next 3 functions watch each other. you cannot add next argument until all three of them are used. see 'checkArgsSetSize' function
 void symtbTokenAddArgName(symtb_token *dst,  lex_token src);

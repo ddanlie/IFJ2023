@@ -17,6 +17,7 @@ bool setLiteralType(literal_type *type, lex_token lxtoken, bool checkInit);
 bool ruleTypeCheck(int rule_index, Stack *expr_stack);
 //compares type and expression. if there is no type - tries to derive the type and assigns it to var
 bool vardefCompareTypeExpr(symtb_token *var, literal_type expr_type);
+void addFuncVarsToTable(symtb_token func, symtable *tb);
 //add to global or temp frame
 void addVarToFrame(symtb_token current_symtb_token);
 

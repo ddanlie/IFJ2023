@@ -276,7 +276,7 @@ bool vardefCompareTypeExpr(symtb_token *var, literal_type expr_type)
         if(expr_type != UNDEF_TYPE)//is there an expression
         {
             //can you derive the type from the expression?
-            if(expr_type == NIL_TYPE)
+            if(expr_type == NIL_TYPE || expr_type == BOOL_TYPE)
             {
                 analysis_error = TYPE_DERIV_ERROR;
                 return false;
@@ -301,7 +301,8 @@ bool setLiteralType(literal_type *type, lex_token lxtoken, bool checkInit)
         case ID://find variable and set its type as current type
         {
             symtb_token *found;
-            if(getFromGlobalTable(lxtoken.str.value, &found))
+            
+            if(getFromEverywhere(lxtoken.str.value, &found, NULL))
             {
                 if(checkInit && !found->initialized)
                 {
@@ -438,38 +439,38 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
             
             if(op1->type == INT_TYPE && op2->type == INT_TYPE)
             {
-                current_expr_type = UNDEF_TYPE;
+                current_expr_type = BOOL_TYPE;
             }
             else if((op1->type == NIL_TYPE || op1->type == NINT_NIL_TYPE || op1->type == NINT_TYPE) &&
                     (op2->type == NIL_TYPE || op2->type == NINT_NIL_TYPE  || op2->type == NINT_TYPE))//cannot compare Int and Int?
             {
-                current_expr_type = UNDEF_TYPE;
+                current_expr_type = BOOL_TYPE;
             }
             else if(op1->type == DOUBLE_TYPE && op2->type == DOUBLE_TYPE)
             {
-                current_expr_type = UNDEF_TYPE;
+                current_expr_type = BOOL_TYPE;
             }
             else if((op1->type == NIL_TYPE || op1->type == NDOUBLE_NIL_TYPE || op1->type == NDOUBLE_TYPE) &&
                     (op2->type == NIL_TYPE || op2->type == NDOUBLE_NIL_TYPE  || op2->type == NDOUBLE_TYPE))//cannot compare Double and Double?
             {
-                current_expr_type = UNDEF_TYPE;
+                current_expr_type = BOOL_TYPE;
             }
             else if(op1->type == INT_TYPE && op1->lxtoken.lexeme_type == INT_LIT && op2->type == DOUBLE_TYPE)//conversion  with literal only
             {
-                current_expr_type = UNDEF_TYPE;
+                current_expr_type = BOOL_TYPE;
             }
             else if(op1->type == DOUBLE_TYPE && op2->type == INT_TYPE && op2->lxtoken.lexeme_type == INT_LIT)//conversion  with literal only
             {
-                current_expr_type = UNDEF_TYPE;
+                current_expr_type = BOOL_TYPE;
             }
             else if(op1->type == STRING_TYPE && op2->type == STRING_TYPE)
             {
-                current_expr_type = UNDEF_TYPE;
+                current_expr_type = BOOL_TYPE;
             }
             else if((op1->type == NIL_TYPE || op1->type == NSTRING_NIL_TYPE || op1->type == NSTRING_TYPE) &&
                     (op2->type == NIL_TYPE || op2->type == NSTRING_NIL_TYPE || op2->type == NSTRING_TYPE))//cannot compare String and String?
             {
-                current_expr_type = UNDEF_TYPE;
+                current_expr_type = BOOL_TYPE;
             }
             else
             {
@@ -493,6 +494,8 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
                 analysis_error = TYPE_COMPAT_ERROR;
                 return false;
             }
+            current_expr_type = BOOL_TYPE;
+            
             break;
         }
         case 13://ID1 -> ID1 QQ ID1
@@ -564,10 +567,28 @@ bool resolveUndefinedFunctions(Stack *undefs, symtb_token defined)
     return true;
 }
 
-
-
-
-
+void addFuncVarsToTable(symtb_token func, symtable *stb)
+{
+    if(func.funcArgsSize == 0)
+        return;
+    
+    symtb_token arg;
+    initSymtbToken(&arg);
+    for(int i = 0; i < func.funcArgsSize; i++)
+    {
+        if(0 == strcmp(func.funcLocalArgnames[i], "_"))
+            continue;
+    
+        arg.initialized = true;
+        arg.type = CONSTANT;
+        symtbTokenCopyName2(&arg, func.funcLocalArgnames[i]);
+        arg.lit_type = func.funcArgTypes[i];
+    
+        symtb_insert(stb, arg.id_name, arg);
+        
+        clearSymtbToken(&arg);
+    }
+}
 
 
 

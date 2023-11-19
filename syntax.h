@@ -18,6 +18,7 @@ extern Stack *local_tables;
 extern symtable temporary_table;
 extern int current_local_level;
 extern lexeme current_expr_lexeme;
+extern Stack *add_later_stack;
 
 extern literal_type current_expr_type;
 
