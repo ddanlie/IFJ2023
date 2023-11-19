@@ -213,7 +213,6 @@ void clearSymtbToken(symtb_token *token)
 }
 
 
-
 void checkArgsSetSize(symtb_token *dst)
 {
     if(dst->funcLocalArgnames == NULL ||

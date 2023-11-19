@@ -8,6 +8,7 @@ lex_token current_lex_token;
 lex_token previous_lex_token;
 symtb_token current_symtb_token;
 symtb_token current_called_function;
+symtb_token current_defined_function;
 Stack *undefined_functions;
 symtable global_table;
 Stack *local_tables;
@@ -521,10 +522,11 @@ bool FCALL_PARAM_LIST()
 bool FUNC_CALL()
 {
     //semantic
+    clearSymtbToken(&current_called_function);
+    current_called_function.type = FUNCTION;
     symtbTokenCopyName(&current_called_function, previous_lex_token);//previous = 'ID'  current = '('
-    symtb_token defined_function;
-    initSymtbToken(&defined_function);
-    if(!getFromGlobalTable(previous_lex_token.str.value, &defined_function))//if function with ID is not found
+    symtb_token *found_function;
+    if(!getFromGlobalTable(previous_lex_token.str.value, &found_function))//if function with ID is not found
         current_called_function.initialized = false;
     //semantic end
     
@@ -534,27 +536,23 @@ bool FUNC_CALL()
     if(!currLexTokenIs(RBR1))
         return false;
     
-    
     //semantic
-    
-    //check if called function corresponds to rules by case:
-    //Case 1: ID = f(...)  - If function is initialized:
-    //                          Assign ID type to function return type. Compare function definition to the function called.
-    //                       If function is not initialized
-    //                          Assign ID type to function return type
-    //
-    //Case 2: f(...)       - If function is initialized:
-    //                          Compare function definition to the function called excepting return type
-    //
-    //
-    if(!current_called_function.initialized)//if function is not initialized put it to 'undefined_functions'
+    if(current_called_function.initialized)
     {
-    
+        current_called_function.lit_type = found_function->lit_type;
+        if(!compareFunctionsSignature(*found_function, current_called_function))
+            return false;
+    }
+    else
+    {
+        if(current_symtb_token.lit_type == UNDEF)//it was just function call f(...)
+            current_called_function.lit_type = VOID_TYPE;
+        else//it is ID = f(...)
+            current_called_function.lit_type = current_symtb_token.lit_type;
+        stackPush(undefined_functions, &current_called_function);
     }
     //semantic end
-    clearSymtbToken(&defined_function);
-    clearSymtbToken(&current_called_function);
-    initSymtbToken(&current_called_function);
+    
     return true;
 }
 
@@ -638,6 +636,8 @@ bool VAR_ENTITY()
 // 'let/var' 'id' ': type/e' '= ASSIGN/e'
 bool VARDEF()
 {
+    clearSymtbToken(&current_symtb_token);
+    
     if(!VAR_ENTITY())
         return false;
     read_move();//read ID after LET/VAR
@@ -697,7 +697,12 @@ bool VARDEF()
 
 bool PARAM_ID()
 {
-    return currLexTokenIs(ID) || currLexTokenIs(ID1);
+    bool res =  currLexTokenIs(ID) || currLexTokenIs(ID1);
+    //semantic
+    if(res)
+        symtbTokenAddArgName(&current_defined_function, current_lex_token);
+    //semantic end
+    return res;
 }
 
 
@@ -713,12 +718,18 @@ bool PARAM_LIST_2()
     read_move();
     if(!currLexTokenIs(ID))
         return false;
+    //semantic
+    symtbTokenAddLocalArgName(&current_defined_function, current_lex_token);
+    //semantic end
     read_move();
     if(!currLexTokenIs(COLON))
         return false;
     read_move();
     if(!TYPE())
         return false;
+    //semantic
+    symtbTokenAddArgType(&current_defined_function, current_lex_token);
+    //semantic end
     read_move();
     if(!PARAM_LIST_2())
         return false;
@@ -726,17 +737,25 @@ bool PARAM_LIST_2()
 
 bool PARAM_LIST()
 {
+    if(currLexTokenIs(RBR1))
+        return true;
     if(!PARAM_ID())
         return false;
     read_move();
     if(!currLexTokenIs(ID))
         return false;
+    //semantic
+    symtbTokenAddLocalArgName(&current_defined_function, current_lex_token);
+    //semantic end
     read_move();
     if(!currLexTokenIs(COLON))
         return false;
     read_move();
     if(!TYPE())
         return false;
+    //semantic
+    symtbTokenAddArgType(&current_defined_function, current_lex_token);
+    //semantic end
     read_move();
     if(!PARAM_LIST_2())
         return false;
@@ -748,14 +767,43 @@ bool RET_EXPR()
 {
     if(EXPR())
     {
+        
         //semantic. check if expr type corresponds to return type
+        if(current_defined_function.lit_type == VOID_TYPE)
+        {
+            analysis_error = RET_VAL_ERROR;
+            return false;
+        }
+        
+        if(current_defined_function.lit_type == NINT_TYPE
+            && (current_expr_type == INT_TYPE || current_expr_type == NINT_TYPE
+                || current_expr_type == NINT_NIL_TYPE || current_expr_type == NIL_TYPE))
+        {}
+        else if(current_defined_function.lit_type == NDOUBLE_TYPE
+                && (current_expr_type == DOUBLE_TYPE || current_expr_type == NDOUBLE_TYPE
+                || current_expr_type == NDOUBLE_NIL_TYPE || current_expr_type == NIL_TYPE))
+        {}
+        else if(current_defined_function.lit_type == NSTRING_TYPE
+                && (current_expr_type == STRING_TYPE || current_expr_type == NSTRING_TYPE
+                    || current_expr_type == NSTRING_NIL_TYPE || current_expr_type == NIL_TYPE))
+        {}
+        else
+        {
+            analysis_error = RET_VAL_ERROR;
+            return false;
+        }
         //semantic end
         
     }
     else
     {
         //semantic. check if return type corresponds to void
-    
+        analysis_error = NO_ERROR;
+        if(current_defined_function.lit_type != VOID_TYPE)
+        {
+            analysis_error = RET_VAL_ERROR;
+            return false;
+        }
         //semantic end
     }
     return true;
@@ -776,6 +824,7 @@ bool FUNC_COMMAND()
             read_move();
             if(!RET_EXPR())
                 return false;
+            break;
         }
         default:
             return false;
@@ -786,6 +835,11 @@ bool FUNC_COMMAND()
 
 bool FUNC_BLOCK()
 {
+    //semantic
+    stackPush(local_tables, &temporary_table);
+    temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
+    //semantic end
+    
     if(!currLexTokenIs(LBR2))
         return false;
     read_move();
@@ -793,6 +847,11 @@ bool FUNC_BLOCK()
         return false;
     if(!currLexTokenIs(RBR2))
         return false;
+    
+    //semantic
+    symtb_clear(temporary_table);
+    temporary_table = *(symtable*)stackPop(local_tables);
+    //semantic end
     
     return true;
 }
@@ -834,6 +893,7 @@ bool FUNC_COMMAND_LIST()
         case IF:
         case LET:
         case WHILE:
+        case RETURN:
             if(!FUNC_COMMAND())
                 return false;
             //all commands read one extra lexeme, no need for read_move()
@@ -859,8 +919,11 @@ bool RETURN_FORM()
     if(currLexTokenIs(RARROW))
     {
         read_move();
-        if(!currLexTokenIs(TYPE()))
+        if(!TYPE())
             return false;
+        //semantic
+        symtbTokenSetTypefromKw(&current_defined_function, current_lex_token);
+        //semantic end
         read_move();
     }
     return true;
@@ -871,20 +934,40 @@ bool FUNCDEF()
     if(!currLexTokenIs(ID))
         return false;
     
-    read_move();
+    //semantic
+    if(varRedefinition(current_lex_token.str.value))
+        return false;
     
-    if(!currLexTokenIs(LBR1))
+    clearSymtbToken(&current_defined_function);
+    symtbTokenCopyName(&current_defined_function, current_lex_token);
+    //semantic end
+    
+    read_move();
+    if(currLexTokenIs(LBR1))
     {
         read_move();
         if(!PARAM_LIST())
             return false;
     }
+    else
+    {
+        return false;
+    }
     read_move();//read '->' or '{' or wrong lexeme
     if(!RETURN_FORM())
         return false;
+    
+    //semantic
+    addVarToFrame(current_defined_function);
+    //semantic end
+    
     if(!FUNC_BLOCK())
         return false;
-
+    
+    //semantic
+    clearSymtbToken(&current_defined_function);
+    //semantic end
+    read_move();
     return true;
 }
 
@@ -898,13 +981,29 @@ bool VAR_ASSIGN()
 bool ID_COMMAND()
 {
     //previous lexeme has ID
-    //semantic
-    getFromGlobalTable(previous_lex_token.str.value, &current_symtb_token);
-    //semantic
+
     if(currLexTokenIs(AS))
     {
+        //semantic
+        clearSymtbToken(&current_symtb_token);
+        symtb_token *foundvar;
+        if(!getFromEverywhere(previous_lex_token.str.value, &foundvar, NULL))
+        {
+            analysis_error = VAR_INIT_ERROR;
+            return false;
+        }
+        copySymtbToken(&current_symtb_token, *foundvar);
+        //semantic end
+        
         if(!VAR_ASSIGN())
             return false;
+        
+        //semantic
+        if(!compareIDtoFuncReturn(current_symtb_token, current_called_function))
+            return false;
+        clearSymtbToken(&current_symtb_token);
+        clearSymtbToken(&current_called_function);
+        //semantic end
     }
     else if(currLexTokenIs(LBR1))
     {
@@ -1062,13 +1161,22 @@ bool LOCAL_COMMAND_LIST()
     return true;
 }
 
-
 bool BLOCK()
 {
+    //semantic
+    stackPush(local_tables, &temporary_table);
+    temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
+    //semantic end
+    
     if(!LOCAL_COMMAND_LIST())
         return false;
     if(!currLexTokenIs(RBR2))
         return false;
+    
+    //semantic
+    symtb_clear(temporary_table);
+    temporary_table = *(symtable*)stackPop(local_tables);
+    //semantic end
     return true;
 }
 
@@ -1240,10 +1348,12 @@ void init_analyzer(FILE *input_file)
     analysis_error = SYNTAX_ERROR;
     initPrecedenceTable();
     initSymtbToken(&current_symtb_token);
+    initSymtbToken(&current_defined_function);
     clearLexToken(&previous_lex_token);
     clearLexToken(&current_lex_token);
     initLexToken(&previous_lex_token);
     initLexToken(&current_lex_token);
+    temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
     global_table = symtb_init(SYMTABLE_INIT_SIZE);
     local_tables = stackInit(sizeof(symtable));
     current_local_level = 0;
@@ -1257,8 +1367,9 @@ ret_t prepared_return(ret_t ret)
     freeLexToken(&current_lex_token);
     freeLexToken(&previous_lex_token);
     clearSymtbToken(&current_symtb_token);
+    clearSymtbToken(&current_defined_function);
     symtb_clear(global_table);
-    
+    symtb_clear(temporary_table);
     stackResetSemiPop(local_tables);
     symtable *local_table = stackSemiPop(local_tables);
     if(local_table != NULL)
@@ -1300,6 +1411,22 @@ void err_exit(ret_t ret)
 //        current_called_function.initialized = false;
 //    }
 //}
+
+bool getFromEverywhere(char *id, symtb_token **found, symtable **table_found)
+{
+    if(getFromGlobalTable(id, found))
+    {
+        *table_found = &global_table;
+        return true;
+    }
+    else
+    if(getFromLocalTables(id, found, table_found))
+    {
+        return true;
+    }
+    
+    return false;
+}
 
 bool getFromGlobalTable(char *id, symtb_token **found)
 {

@@ -183,8 +183,8 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
             {
                 token->lexeme_type = MINUS;
                 ungetc(c, input_file);
-                end = 1;
             }
+            end = 1;
             break;
         
         case EXCLAMS:    //Beginning EXCLAMS '!'

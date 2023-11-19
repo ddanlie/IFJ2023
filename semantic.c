@@ -63,6 +63,132 @@ bool isFuncDefined(char *func)
     return false;
 }
 
+bool compareFunctionsSignature(symtb_token f1, symtb_token f2)
+{
+    bool res = true;
+    if(f1.type != f2.type)//that would be really strange
+        res = false;
+    if(f1.funcArgsSize != f2.funcArgsSize)
+        res = false;
+    if(f1.lit_type != f2.lit_type)//return types
+        res = false;
+    
+    for(int i = 0; i < f1.funcArgsSize; i++)
+    {
+        if(f1.funcArgTypes != f2.funcArgTypes)
+        {
+            res = false;
+            break;
+        }
+        
+        if(0 != strcmp(f1.funcArgnames[i], "_"))
+        {
+            if(0 != strcmp(f1.funcArgnames[i], f2.funcArgnames[i]))
+            {
+                res = false;
+                break;
+            }
+        }
+    }
+    
+    if(!res)
+    {
+        analysis_error = FUNC_PARAM_ERROR;
+    }
+    return res;
+}
+
+bool compareUndefinedFunction(symtb_token defined, symtb_token undefined)
+{
+    bool res = true;
+    if(defined.type != undefined.type)//that would be really strange
+        res = false;
+    if(defined.funcArgsSize != undefined.funcArgsSize)
+        res = false;
+    if(defined.lit_type != undefined.lit_type)//return types
+    {
+        //convert conditions for ease to understand what types are compatible
+        if((undefined.lit_type == INT_TYPE || undefined.lit_type == NINT_TYPE || undefined.lit_type == NINT_NIL_TYPE) &&
+            (defined.lit_type == INT_TYPE || defined.lit_type == NINT_TYPE))
+        {}
+        else if((undefined.lit_type == DOUBLE_TYPE || undefined.lit_type == NDOUBLE_TYPE || undefined.lit_type == NDOUBLE_NIL_TYPE) &&
+            (defined.lit_type == DOUBLE_TYPE || defined.lit_type == NDOUBLE_TYPE))
+        {}
+        else if((undefined.lit_type == STRING_TYPE || undefined.lit_type == NSTRING_TYPE || undefined.lit_type == NSTRING_NIL_TYPE) &&
+                  (defined.lit_type == STRING_TYPE || defined.lit_type == NSTRING_TYPE))
+        {}
+        else if(undefined.lit_type == VOID_TYPE)
+        {}
+        else
+            res = false;
+    }
+    
+    for(int i = 0; i < defined.funcArgsSize; i++)
+    {
+        if((undefined.funcArgTypes[i] == INT_TYPE)
+            && (defined.funcArgTypes[i] == INT_TYPE || defined.funcArgTypes[i] == NINT_TYPE))
+        {}
+        else if((undefined.funcArgTypes[i] == NINT_TYPE || undefined.funcArgTypes[i] == NIL_TYPE)
+                && (defined.funcArgTypes[i] == NINT_TYPE))
+        {}
+        else  if((undefined.funcArgTypes[i] == DOUBLE_TYPE)
+                && (defined.funcArgTypes[i] == DOUBLE_TYPE || defined.funcArgTypes[i] == NDOUBLE_TYPE))
+        {}
+        else if((undefined.funcArgTypes[i] == NDOUBLE_TYPE || undefined.funcArgTypes[i] == NIL_TYPE)
+                && (defined.funcArgTypes[i] == NDOUBLE_TYPE))
+        {}
+        else if((undefined.funcArgTypes[i] == STRING_TYPE)
+                && (defined.funcArgTypes[i] == STRING_TYPE || defined.funcArgTypes[i] == NSTRING_TYPE))
+        {}
+        else if((undefined.funcArgTypes[i] == NSTRING_TYPE || undefined.funcArgTypes[i] == NIL_TYPE)
+                && (defined.funcArgTypes[i] == NSTRING_TYPE))
+        {}
+        else
+        {
+            res = false;
+            break;
+        }
+        
+        if(0 != strcmp(undefined.funcArgnames[i], "_"))
+        {
+            if(0 != strcmp(undefined.funcArgnames[i], defined.funcArgnames[i]))
+            {
+                res = false;
+                break;
+            }
+        }
+    }
+    
+    if(!res)
+    {
+        analysis_error = FUNC_PARAM_ERROR;
+    }
+    return res;
+}
+
+bool compareIDtoFuncReturn(symtb_token var, symtb_token f)
+{
+    if(var.lit_type == f.lit_type)
+        return true;
+    if((var.lit_type == NINT_TYPE || var.lit_type == NINT_NIL_TYPE) &&
+         (f.lit_type == NINT_TYPE || f.lit_type == INT_TYPE))
+    {}
+    else if((var.lit_type == NDOUBLE_TYPE || var.lit_type == NDOUBLE_NIL_TYPE) &&
+            (f.lit_type == NDOUBLE_TYPE || f.lit_type == DOUBLE_TYPE))
+    {}
+    else if((var.lit_type == NSTRING_TYPE || var.lit_type == NSTRING_NIL_TYPE) &&
+            (f.lit_type == NSTRING_TYPE || f.lit_type == STRING_TYPE))
+    {}
+    else
+    {
+        analysis_error = TYPE_COMPAT_ERROR;
+        return false;
+    }
+    
+    return true;
+}
+
+
 void addVarToFrame(symtb_token var)
 {
     if(current_local_level == 0)//global
@@ -185,7 +311,7 @@ bool setLiteralType(literal_type *type, lex_token lxtoken, bool checkInit)
         }
         case NIL:
         {
-            *type = UNDEF_TYPE;
+            *type = NIL_TYPE;
             break;
         }
         default:
