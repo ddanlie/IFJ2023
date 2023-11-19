@@ -6,6 +6,7 @@
 
 #define MAX_VAR_NAME_LENGTH 100
 #define MAX_LITERAL_LENGTH 10000
+
 void prepare();
 void defvar(char *name);
 void addr3op(char *op, char *res, char *a1, char *a2);
@@ -17,6 +18,7 @@ char *get_literal_name(lex_token lt);
 char* generate_expr_var_name();
 char* generate_label();
 void pass_vars_to_global();
+void jump(char *lbl);
 
 
 

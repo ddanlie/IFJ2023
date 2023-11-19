@@ -23,12 +23,29 @@ void move(char *var, char *symb)
     printf("MOVE %s %s\n", var, symb);
 }
 
+void jump(char *lbl)
+{
+    printf("JUMP %s\n", lbl);
+}
+
 
 void addr3op(char *op, char *res, char *a1, char *a2)
 {
     if(0 == strcmp(op, "CONCAT"))
     {
         printf("CONCAT %s %s %s\n", res, a1, a2);
+    }
+    else if(0 == strcmp(op, "AND"))
+    {
+        printf("AND %s %s %s\n", res, a1, a2);
+    }
+    else if(0 == strcmp(op, "OR"))
+    {
+        printf("OR %s %s %s\n", res, a1, a2);
+    }
+    else if(0 == strcmp(op, "NOT"))
+    {
+        printf("NOT %s %s\n", res, a1);
     }
     else if(0 == strcmp(op, "PLUS"))
     {
@@ -88,13 +105,12 @@ void addr3op(char *op, char *res, char *a1, char *a2)
         printf("JUMP %s\n", lbl3);
         printf("LABEL %s\n", lbl2);
         printf("MOVE %s %s\n", res, a1);
-        printf("LABEL %s", lbl3);
+        printf("LABEL %s\n", lbl3);
         
         free(lbl1);
         free(lbl2);
         free(lbl3);
     }
-    
 }
 
 char* generate_expr_var_name()

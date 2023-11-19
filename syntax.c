@@ -752,6 +752,7 @@ bool VARDEF()
     {
         move(varname, generator_temp_res_name);
         free(generator_temp_res_name);
+        generator_temp_res_name = NULL;
     }
     free(varname);
     //generator end
@@ -837,6 +838,7 @@ bool RET_EXPR()
     if(EXPR())
     {
         free(generator_temp_res_name);
+        generator_temp_res_name = NULL;
         //semantic. check if expr type corresponds to return type
         if(current_defined_function.lit_type == VOID_TYPE)
         {
@@ -876,7 +878,10 @@ bool RET_EXPR()
     else
     {
         if(generator_temp_res_name != NULL)
+        {
             free(generator_temp_res_name);
+            generator_temp_res_name = NULL;
+        }
         //semantic. check if return type corresponds to void
         analysis_error = NO_ERROR;
         if(current_defined_function.lit_type != VOID_TYPE)
@@ -1117,6 +1122,7 @@ bool ID_COMMAND()
             move(varname, generator_temp_res_name);
             free(varname);
             free(generator_temp_res_name);
+            generator_temp_res_name = NULL;
             //generator end
         }
         else//it was function call
@@ -1168,8 +1174,6 @@ bool BRANCH_CANDIDATE()
     }
     else if(EXPR())
     {
-        if(generator_temp_res_name != NULL)
-            free(generator_temp_res_name);
         //semantic
         if(current_expr_type != BOOL_TYPE)
         {
@@ -1190,6 +1194,18 @@ bool BRANCH()
     if(!BRANCH_CANDIDATE())
         return false;
     
+    //generator
+    char *elseLabel = generate_label();
+    if(generator_temp_res_name != NULL)
+    {
+        addr3op("NOT", generator_temp_res_name, generator_temp_res_name, NULL);
+        printf("JUMPIFEQ %s %s %s\n", elseLabel, generator_temp_res_name, "bool@true");
+        free(generator_temp_res_name);
+        generator_temp_res_name = NULL;
+    }
+    //generator end
+    
+    
     //previous token сan be ID
     //semantic
     bool push_orig = false;
@@ -1208,6 +1224,7 @@ bool BRANCH()
         {
             case NINT_TYPE:
                 unnilled.lit_type = INT_TYPE;
+
                 break;
             case NSTRING_TYPE:
                 unnilled.lit_type = STRING_TYPE;
@@ -1219,8 +1236,15 @@ bool BRANCH()
                 break;
         }
         stackPush(add_later_stack, &unnilled);
+        
+        //generator
+        char *vname = get_var_name(previous_lex_token.str.value);
+        printf("JUMPIFEQ %s %s %s\n", elseLabel, vname, "nil@nil");
+        free(vname);
+        //generator end
     }
     //semantic end
+    
     if(!currLexTokenIs(LBR2))
         return false;
     read_move();
@@ -1230,10 +1254,18 @@ bool BRANCH()
     if(!currLexTokenIs(ELSE))
         return false;
     
+    
+    //generator
+    char *exitLabel = generate_label();
+    jump(exitLabel);
+    printf("LABEL %s\n", elseLabel);
+    //generator end
+    
     //semantic
-    if(push_orig)
+    if(push_orig)//push inside else block
         stackPush(add_later_stack, &orig);
     //semantic end
+    
     
     read_move();
     if(!currLexTokenIs(LBR2))
@@ -1244,6 +1276,11 @@ bool BRANCH()
     
     read_move();//command must read next lexeme
     
+    //generator
+    printf("LABEL %s\n", exitLabel);
+    free(elseLabel);
+    free(exitLabel);
+    //generator end
     return true;
 }
 
@@ -1254,7 +1291,10 @@ bool ITERATION()
         return false;
     
     if(generator_temp_res_name != NULL)
+    {
         free(generator_temp_res_name);
+        generator_temp_res_name = NULL;
+    }
     
     if(current_expr_type != BOOL_TYPE)
     {
@@ -1393,7 +1433,22 @@ bool BLOCK()
     symtb_token *later = stackPop(add_later_stack);
     while(later != NULL)
     {
+        //generator
+        char *vname_before_insert = get_var_name(later->id_name);
+        // printf("--------- vname before = %s\n ---------", vname_before_insert);
+        //generator end
+        
         symtb_insert(&temporary_table, later->id_name, *later);
+        
+        //generator
+        char *vname = get_var_name(later->id_name);
+        //printf("--------- vname after = %s\n---------", vname_before_insert);
+        defvar(vname);
+        move(vname, vname_before_insert);
+        free(vname);
+        free(vname_before_insert);
+        //generator end
+        
         clearSymtbToken(later);
         free(later);
         later = stackPop(add_later_stack);
@@ -1670,6 +1725,11 @@ void err_exit(ret_t ret)
 
 bool getFromEverywhere(char *id, symtb_token **found, symtable **table_found)
 {
+    if(getFromLocalTables(id, found, table_found))
+    {
+        return true;
+    }
+    else
     if(getFromGlobalTable(id, found))
     {
         if(table_found != NULL)
@@ -1677,12 +1737,9 @@ bool getFromEverywhere(char *id, symtb_token **found, symtable **table_found)
         return true;
     }
     else
-    if(getFromLocalTables(id, found, table_found))
     {
-        return true;
+        return false;
     }
-    
-    return false;
 }
 
 bool getFromGlobalTable(char *id, symtb_token **found)
