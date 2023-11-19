@@ -2,8 +2,8 @@
 #ifndef DEFS_H
 #define DEFS_H
 
-#define SYNTAX_DBG
-#define SEM_DBG
+//#define SYNTAX_DBG
+//#define SEM_DBG
 
 #define LEXICAL_ERROR 1       // Lexical analysis error (faulty structure of current lexeme)
 #define SYNTAX_ERROR 2        // Syntax analysis error

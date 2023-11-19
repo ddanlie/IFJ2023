@@ -359,6 +359,12 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
             stackResetSemiPop(expr_stack);
             
             current_expr_type = el->type;
+            
+            
+            //generator
+            generator_temp_res_name = generate_expr_var_name();
+            move(generator_temp_res_name, el->generator_tmp_name);
+            //generator end
             break;
         }
         case 1://ID1 -> ID
@@ -367,6 +373,22 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
             stackResetSemiPop(expr_stack);
             if(!setLiteralType(&current_expr_type, el->lxtoken, true))//we do not use el->type as it is not present
                 return false;
+    
+            //generator
+            generator_temp_res_name = generate_expr_var_name();
+            if(el->lxtoken.lexeme_type == ID)//variable
+            {
+                char *vn = get_var_name(el->lxtoken.str.value);
+                move(generator_temp_res_name, vn);
+                free(vn);
+            }
+            else//constant
+            {
+                char *ln = get_literal_name(el->lxtoken);
+                move(generator_temp_res_name, ln);
+                free(ln);
+            }
+            //generator end
             break;
         }
         case 2://ID1 -> EXCLAM ID1
@@ -385,6 +407,10 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
                 default:
                     break;
             }
+            //generator
+            generator_temp_res_name = generate_expr_var_name();
+            move(generator_temp_res_name, el->generator_tmp_name);
+            //generator end
             break;
         }
         case 3://ID1 -> ID1 MUL ID1
@@ -392,16 +418,24 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
         case 5://ID1 -> ID1 PLUS ID1
         case 6://ID1 -> ID1 MINUS ID1
         {
+            
             expr_lexeme *op2 = stackSemiPop(expr_stack);
             stackSemiPop(expr_stack);
             expr_lexeme *op1 = stackSemiPop(expr_stack);
             stackResetSemiPop(expr_stack);
     
+            //generator
+            bool wasop = false;
+            generator_temp_res_name = generate_expr_var_name();
+            //generator end
+            
             if(rule_index == 5)//string concatenation
             {
                 if(op1->type == STRING_TYPE && op2->type == STRING_TYPE)
                 {
                     current_expr_type = STRING_TYPE;
+                    addr3op("CONCAT", generator_temp_res_name, op1->generator_tmp_name, op2->generator_tmp_name);
+                    wasop = true;
                     break;
                 }
             }
@@ -427,6 +461,15 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
                 analysis_error = TYPE_COMPAT_ERROR;
                 return false;
             }
+            
+            
+            //generator
+            //             0   1   2     3      4      5       6
+            char *ops[] = {"", "", "", "MUL", "DIV", "PLUS", "MINUS"};
+            if(!wasop)
+                addr3op(ops[rule_index], generator_temp_res_name, op1->generator_tmp_name, op2->generator_tmp_name);
+            //generator end
+            
             break;
         }
         case 7://ID1 -> ID1 EQ ID1
@@ -477,6 +520,15 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
                 analysis_error = TYPE_COMPAT_ERROR;
                 return false;
             }
+    
+            //generator
+            //             0   1   2   3   4   5    6   7      8
+            char *ops[] = {"", "", "", "", "", "", "", "EQ", "NEQ"};
+            generator_temp_res_name = generate_expr_var_name();
+            addr3op(ops[rule_index], generator_temp_res_name, op1->generator_tmp_name, op2->generator_tmp_name);
+            //generator end
+            
+            
             break;
         }
         case 9://ID1 -> ID1 LE ID1
@@ -495,7 +547,15 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
                 return false;
             }
             current_expr_type = BOOL_TYPE;
-            
+    
+            //generator
+            //             0   1   2   3   4   5    6   7  8    9     10    11     12
+            char *ops[] = {"", "", "", "", "", "", "", "", "", "LT", "GT", "LTE", "GTE"};
+            generator_temp_res_name = generate_expr_var_name();
+            addr3op(ops[rule_index], generator_temp_res_name, op1->generator_tmp_name, op2->generator_tmp_name);
+            //generator end
+    
+    
             break;
         }
         case 13://ID1 -> ID1 QQ ID1
@@ -504,6 +564,7 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
             stackSemiPop(expr_stack);
             expr_lexeme *op1 = stackSemiPop(expr_stack);
             stackResetSemiPop(expr_stack);
+            
             
             if((op1->type == NIL_TYPE || op1->type == NDOUBLE_TYPE || op1->type == NDOUBLE_NIL_TYPE || op1->type == DOUBLE_TYPE) && op2->type == DOUBLE_TYPE)
             {
@@ -522,6 +583,14 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
                 analysis_error = TYPE_COMPAT_ERROR;
                 return false;
             }
+    
+            //generator
+            generator_temp_res_name = generate_expr_var_name();
+            addr3op("QQ", generator_temp_res_name, op1->generator_tmp_name, op2->generator_tmp_name);
+            //generator end
+    
+
+    
             break;
         }
         default:

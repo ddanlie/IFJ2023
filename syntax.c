@@ -16,8 +16,8 @@ symtable temporary_table;
 int current_local_level;
 lexeme current_expr_lexeme;
 Stack *add_later_stack;
-
 literal_type current_expr_type;
+char *generator_temp_res_name;
 
 bool GLOBAL_COMMAND_LIST();
 bool LOCAL_COMMAND_LIST();
@@ -108,14 +108,14 @@ void expr_read_move()
     correct_current_lexeme(current_lex_token);
 }
 
-void exprStackPushElem(Stack *expr_stack, const lex_token *lxtoken, lexeme expr_lex, char specChar, literal_type type)
+void exprStackPushElem(Stack *expr_stack, const lex_token *lxtoken, lexeme expr_lex, char specChar, literal_type type, char *generator_tmp_name)
 {
     lex_token elem;
     clearLexToken(&elem);
     initLexToken(&elem);
     if(lxtoken != NULL)//if it is NULL - push dummy instead of lex_token
         copyLexToken(*lxtoken, &elem);
-    stackPush(expr_stack, &(expr_lexeme){elem, expr_lex, specChar, type});
+    stackPush(expr_stack, &(expr_lexeme){elem, expr_lex, specChar, type, generator_tmp_name});
 }
 
 void exprStackDestroy(Stack *expr_stack)
@@ -124,6 +124,8 @@ void exprStackDestroy(Stack *expr_stack)
     while(el != NULL)
     {
         freeLexToken(&el->lxtoken);
+        free(el->generator_tmp_name);
+        el->generator_tmp_name = NULL;
         free(el);
         el = stackPop(expr_stack);
     }
@@ -153,12 +155,13 @@ void printExprStack(Stack *st)
 //careful! ID can be INT_LIT,STRING_LIT or DOUBLE_LIT. Control it before semantic check
 bool EXPR()
 {
+    generator_temp_res_name = NULL;
     current_expr_type = UNDEF_TYPE;
     
     expr_lexeme expr_lex_helper;
     
     Stack *expr_stack = stackInit(sizeof(expr_lexeme));
-    exprStackPushElem(expr_stack, NULL, UNDEF, '\0', UNDEF_TYPE);//push $ on top
+    exprStackPushElem(expr_stack, NULL, UNDEF, '\0', UNDEF_TYPE, NULL);//push $ on top
     
     if(previous_lex_token.lexeme_type == ID)//odd case when we don't know was it function call or expression. so we read token ahead
     {
@@ -168,8 +171,8 @@ bool EXPR()
         {
             case le://'<'
             {
-                exprStackPushElem(expr_stack, NULL, ELSE, le, UNDEF_TYPE);//change a to a<  //we know we are at the very bottom and a = '$'
-                exprStackPushElem(expr_stack, &previous_lex_token, current_expr_lexeme, '\0', UNDEF_TYPE);//push b (b = ID)
+                exprStackPushElem(expr_stack, NULL, ELSE, le, UNDEF_TYPE, "");//change a to a<  //we know we are at the very bottom and a = '$'
+                exprStackPushElem(expr_stack, &previous_lex_token, current_expr_lexeme, '\0', UNDEF_TYPE, generate_expr_var_name());//push b (b = ID)
                 //we don't read next b as it is already in current_lex_token
                 break;
             }
@@ -191,7 +194,7 @@ bool EXPR()
         {
             case eq://'='
             {
-                exprStackPushElem(expr_stack, &current_lex_token, current_expr_lexeme, '\0', UNDEF_TYPE);//push b
+                exprStackPushElem(expr_stack, &current_lex_token, current_expr_lexeme, '\0', UNDEF_TYPE, generate_expr_var_name());//push b
                 expr_read_move();//read next b
                 break;
             }
@@ -205,23 +208,34 @@ bool EXPR()
                     elem = stackPop(expr_stack);
                 }
                 //change a to a<
-                exprStackPushElem(expr_stack, &(elem->lxtoken), elem->exp_lex, '\0', UNDEF_TYPE);//push a
+                exprStackPushElem(expr_stack, &(elem->lxtoken), elem->exp_lex, '\0', UNDEF_TYPE, elem->generator_tmp_name);//push a
                 freeLexToken(&elem->lxtoken);
+                if(elem->generator_tmp_name != NULL)
+                {
+                    free(elem->generator_tmp_name);
+                    elem->generator_tmp_name = NULL;
+                }
                 free(elem);
-                exprStackPushElem(expr_stack, NULL, ELSE, le, UNDEF_TYPE);//push <
+                exprStackPushElem(expr_stack, NULL, ELSE, le, UNDEF_TYPE, NULL);//push <
                 //return characters back
                 expr_lexeme **expr_lex_helper_3 = stackPop(tmp_st);//we got pointer to pointer
                 while(expr_lex_helper_3 != NULL)
                 {
-                    exprStackPushElem(expr_stack, &((*expr_lex_helper_3)->lxtoken), (*expr_lex_helper_3)->exp_lex, '\0', (*expr_lex_helper_3)->type);
+                    exprStackPushElem(expr_stack, &((*expr_lex_helper_3)->lxtoken),
+                                      (*expr_lex_helper_3)->exp_lex, '\0', (*expr_lex_helper_3)->type, (*expr_lex_helper_3)->generator_tmp_name);
                     freeLexToken(&(*expr_lex_helper_3)->lxtoken);//we have to delete it because it is copied inside the push function.
+                    if((*expr_lex_helper_3)->generator_tmp_name != NULL)
+                    {
+                        free((*expr_lex_helper_3)->generator_tmp_name);
+                        (*expr_lex_helper_3)->generator_tmp_name = NULL;
+                    }
                     free(*expr_lex_helper_3);
                     free(expr_lex_helper_3);
                     expr_lex_helper_3 = stackPop(tmp_st);
                 }
                 stackDestroy(tmp_st);
     
-                exprStackPushElem(expr_stack, &current_lex_token, current_expr_lexeme, '\0', UNDEF_TYPE);//push b
+                exprStackPushElem(expr_stack, &current_lex_token, current_expr_lexeme, '\0', UNDEF_TYPE, generate_expr_var_name());//push b
                 expr_read_move();//read next b
                 break;
             }
@@ -279,17 +293,32 @@ bool EXPR()
                     else
                     {
                         freeLexToken(&(expr_lex_helper_3->lxtoken));
+                        if(expr_lex_helper_3->generator_tmp_name != NULL)
+                        {
+                            free(expr_lex_helper_3->generator_tmp_name);
+                            expr_lex_helper_3->generator_tmp_name = NULL;
+                        }
                         free(expr_lex_helper_3);
                     }
                     
                 }
                 expr_lex_helper_3 = stackPop(expr_stack);//pop '<' sign
                 freeLexToken(&(expr_lex_helper_3->lxtoken));
+                if(expr_lex_helper_3->generator_tmp_name != NULL)
+                {
+                    free(expr_lex_helper_3->generator_tmp_name);
+                    expr_lex_helper_3->generator_tmp_name = NULL;
+                }
                 free(expr_lex_helper_3);
                 
-                exprStackPushElem(expr_stack, &tmp->lxtoken, expr_rule_table[rule_idx][0], '\0', current_expr_type);//push 'A'  from 'A -> y'
+                exprStackPushElem(expr_stack, &tmp->lxtoken, expr_rule_table[rule_idx][0], '\0', current_expr_type, generator_temp_res_name);//push 'A'  from 'A -> y'
     
                 freeLexToken(&tmp->lxtoken);
+                if(tmp->generator_tmp_name != NULL)
+                {
+                    free(tmp->generator_tmp_name);
+                    tmp->generator_tmp_name = NULL;
+                }
                 free(tmp);
                 break;
             }
@@ -321,6 +350,11 @@ bool EXPR()
     expr_lexeme *expr_lex_helper_2 = stackSemiPop(expr_stack);
     if(expr_lex_helper_2->exp_lex != ID1)
         itsok = false;
+    //generator
+    char *s = generator_temp_res_name;
+    generator_temp_res_name = malloc(sizeof(char)*(strlen(s)+1));
+    strcpy(generator_temp_res_name, s);
+    //generator end
     expr_lex_helper_2 = stackSemiPop(expr_stack);
     if(expr_lex_helper_2->exp_lex != UNDEF)
         itsok = false;
@@ -717,6 +751,18 @@ bool VARDEF()
         return false;
     
     addVarToFrame(current_symtb_token);
+    
+    //generator
+    char *varname = get_var_name(current_symtb_token.id_name);
+    defvar(varname);
+    if(generator_temp_res_name != NULL)
+    {
+        move(varname, generator_temp_res_name);
+        free(generator_temp_res_name);
+    }
+    free(varname);
+    //generator end
+    
     clearSymtbToken(&current_symtb_token);
     //semantic end
     
@@ -797,7 +843,7 @@ bool RET_EXPR()
 {
     if(EXPR())
     {
-        
+        free(generator_temp_res_name);
         //semantic. check if expr type corresponds to return type
         if(current_defined_function.lit_type == VOID_TYPE)
         {
@@ -836,6 +882,8 @@ bool RET_EXPR()
     }
     else
     {
+        if(generator_temp_res_name != NULL)
+            free(generator_temp_res_name);
         //semantic. check if return type corresponds to void
         analysis_error = NO_ERROR;
         if(current_defined_function.lit_type != VOID_TYPE)
@@ -875,19 +923,20 @@ bool FUNC_COMMAND()
 bool FUNC_BLOCK()
 {
     //semantic
-    stackPush(local_tables, &temporary_table);
+    //stackPush(local_tables, &temporary_table);//curr level is always = 0
+    symtb_clear(temporary_table);
     temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
     current_local_level += 1;
     temporary_table.local_level = current_local_level;
     
-    symtb_token *later = stackPop(add_later_stack);
-    while(later != NULL)
-    {
-        symtb_insert(&temporary_table, later->id_name, *later);
-        clearSymtbToken(later);
-        free(later);
-        later = stackPop(add_later_stack);
-    }
+//    symtb_token *later = stackPop(add_later_stack);
+//    while(later != NULL)
+//    {
+//        symtb_insert(&temporary_table, later->id_name, *later);
+//        clearSymtbToken(later);
+//        free(later);
+//        later = stackPop(add_later_stack);
+//    }
     
     addFuncVarsToTable(current_defined_function, &temporary_table);
     //semantic end
@@ -903,7 +952,7 @@ bool FUNC_BLOCK()
     //semantic
     current_local_level -= 1;
     symtb_clear(temporary_table);
-    temporary_table = *(symtable*)stackPop(local_tables);
+    temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
     //semantic end
     
     return true;
@@ -1063,8 +1112,16 @@ bool ID_COMMAND()
             return false;
         
         //semantic
-        if(current_called_function.type == UNDEF_ID)//it was expression we assigned to variable
+        if(current_called_function.type == UNDEF_ID)//it was the expression we assigned to variable
+        {
             vardefCompareTypeExpr(&current_symtb_token, current_expr_type);
+            //generator
+            char *varname = get_var_name(current_symtb_token.id_name);
+            move(varname, generator_temp_res_name);
+            free(varname);
+            free(generator_temp_res_name);
+            //generator end
+        }
         else//it was function call
         {
             if(!compareIDtoFuncReturn(current_symtb_token, current_called_function))
@@ -1114,6 +1171,8 @@ bool BRANCH_CANDIDATE()
     }
     else if(EXPR())
     {
+        if(generator_temp_res_name != NULL)
+            free(generator_temp_res_name);
         //semantic
         if(current_expr_type != BOOL_TYPE)
         {
@@ -1134,31 +1193,36 @@ bool BRANCH()
     if(!BRANCH_CANDIDATE())
         return false;
     
-    //previous token is ID
+    //previous token сan be ID
     //semantic
-    symtb_token *found;
-    getFromEverywhere(previous_lex_token.str.value, &found, NULL);
+    bool push_orig = false;
     symtb_token unnilled;
     symtb_token orig;
-    initSymtbToken(&orig);
-    initSymtbToken(&unnilled);
-    copySymtbToken(&unnilled, *found);
-    copySymtbToken(&orig, *found);
-    switch(found->lit_type)
+    if(prevLexTokenIs(ID))
     {
-        case NINT_TYPE:
-            unnilled.lit_type = INT_TYPE;
-            break;
-        case NSTRING_TYPE:
-            unnilled.lit_type = STRING_TYPE;
-            break;
-        case NDOUBLE_TYPE:
-            unnilled.lit_type = DOUBLE_TYPE;
-            break;
-        default:
-            break;
+        push_orig = true;
+        symtb_token *found;
+        getFromEverywhere(previous_lex_token.str.value, &found, NULL);
+        initSymtbToken(&orig);
+        initSymtbToken(&unnilled);
+        copySymtbToken(&unnilled, *found);
+        copySymtbToken(&orig, *found);
+        switch(found->lit_type)
+        {
+            case NINT_TYPE:
+                unnilled.lit_type = INT_TYPE;
+                break;
+            case NSTRING_TYPE:
+                unnilled.lit_type = STRING_TYPE;
+                break;
+            case NDOUBLE_TYPE:
+                unnilled.lit_type = DOUBLE_TYPE;
+                break;
+            default:
+                break;
+        }
+        stackPush(add_later_stack, &unnilled);
     }
-    stackPush(add_later_stack, &unnilled);
     //semantic end
     if(!currLexTokenIs(LBR2))
         return false;
@@ -1170,7 +1234,8 @@ bool BRANCH()
         return false;
     
     //semantic
-    stackPush(add_later_stack, &orig);
+    if(push_orig)
+        stackPush(add_later_stack, &orig);
     //semantic end
     
     read_move();
@@ -1190,6 +1255,9 @@ bool ITERATION()
 {
     if(!EXPR())
         return false;
+    
+    if(generator_temp_res_name != NULL)
+        free(generator_temp_res_name);
     
     if(current_expr_type != BOOL_TYPE)
     {
@@ -1307,7 +1375,10 @@ bool LOCAL_COMMAND_LIST()
 bool BLOCK()
 {
     //semantic
-    stackPush(local_tables, &temporary_table);
+    if(current_local_level != 0)
+        stackPush(local_tables, &temporary_table);
+    else
+        symtb_clear(temporary_table);
     temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
     current_local_level += 1;
     temporary_table.local_level = current_local_level;
@@ -1330,7 +1401,11 @@ bool BLOCK()
     //semantic
     current_local_level -= 1;
     symtb_clear(temporary_table);
-    temporary_table = *(symtable*)stackPop(local_tables);
+    symtable *popped = stackPop(local_tables);
+    if(popped != NULL)
+        temporary_table = *popped;
+    else
+        temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
     //semantic end
     return true;
 }
@@ -1514,8 +1589,13 @@ void init_analyzer(FILE *input_file)
     add_later_stack = stackInit(sizeof(symtb_token));
     current_local_level = 0;
     global_table.local_level = 0;
+    temporary_table.local_level = 0;
     initSymtbToken(&current_called_function);
     undefined_functions = stackInit(sizeof(symtb_token));
+    
+    //generator
+    prepare();
+    //generator end
 }
 
 ret_t prepared_return(ret_t ret)

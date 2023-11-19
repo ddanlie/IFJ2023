@@ -42,7 +42,8 @@ void symtb_clear(symtable stb)
         if(!stb.symtb_arr[i].deleted)
             clearSymtbToken(&stb.symtb_arr[i].token);
     }
-    free(stb.symtb_arr);
+    if(stb.size > 0)
+        free(stb.symtb_arr);
 }
 
 ret_t symtb_insert(symtable *stb, char *key, symtb_token value)
@@ -78,6 +79,8 @@ ret_t symtb_insert(symtable *stb, char *key, symtb_token value)
 
 symtb_node* symtb_find(symtable stb, char *key, int *index_found)
 {
+    if(stb.capacity == 0)
+        return NULL;
     int index = hash(key, stb.capacity);
     int counter = 0;
     while((counter < stb.capacity) &&  //keed doing while not all elements viewd OR not deleted element which responds to the key is not found
