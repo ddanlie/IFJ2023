@@ -1,4 +1,3 @@
-//Implementace překladače imperativního jazyka IFJ22
 //Danil Domrachev (xdomra00)
 
 
@@ -14,6 +13,7 @@ List* listInit(unsigned elSize)
     newList->size = 0;
     return newList;
 }
+
 
 void listDestroy(List *lst)
 {
@@ -59,6 +59,7 @@ ret_t listAdd(List *lst, void *elem)
     return 0;
 }
 
+
 ret_t listDelete(List *lst, unsigned i)
 {
     if(lst->size <= i)
@@ -89,7 +90,7 @@ ret_t listDelete(List *lst, unsigned i)
     return 0;
 }
 
-void *listGet(List *lst, unsigned i)
+void* listGet(List *lst, unsigned i)
 {
     if(lst->size <= i)
         return NULL;

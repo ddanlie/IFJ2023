@@ -11,6 +11,7 @@ Stack* stackInit(unsigned elSize)
     return newStack;
 }
 
+
 void stackDestroy(Stack *st)
 {
     listDestroy(st->lst);
@@ -40,10 +41,10 @@ void* stackPop(Stack *st)
 
 void* stackSemiPop(Stack *st)
 {
-    if(st->semiPopCounter >= st->lst->size)
-        st->semiPopCounter = 0;
     void *result = listGet(st->lst, st->semiPopCounter);
     st->semiPopCounter++;
+    if(st->semiPopCounter > st->lst->size)
+        st->semiPopCounter = 0;
     return result;
 }
 

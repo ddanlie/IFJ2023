@@ -1,93 +1,7 @@
 #include "lexical.h"
 
-void strZerosFill(char *str, int start_index, int end_index)
-{
-    for(int i = start_index; i <= end_index; i++)
-        str[i] = '\0';
-}
-
-int initLexToken(lex_token* token)
-{
-    token->lexeme_type = 0;
-    token->double_value = 0.f;
-    token->int_value = 0;
-    
-    token->str.value = malloc(sizeof(char) * INIT_STR_SIZE);
-    if(token->str.value == NULL)
-        return 1;
-    token->str.capacity = INIT_STR_SIZE;
-    token->str.len = 0;
-    strZerosFill(token->str.value, 0, token->str.capacity-1);
-    return 0;
-}
-
-int checkKeyword(lex_token token){
-    //IF, WHILE, ELSE, FUNC, LET, RETURN, VAR, WITH
-    if(!strcmp(token.str.value, "if"))
-        return IF;
-    else if(!strcmp(token.str.value, "while"))
-        return WHILE;
-    else if(!strcmp(token.str.value, "else"))
-        return ELSE;
-    else if(!strcmp(token.str.value, "func"))
-        return FUNC;
-    else if(!strcmp(token.str.value, "let"))
-        return LET;
-    else if(!strcmp(token.str.value, "return"))
-        return RETURN;
-    else if(!strcmp(token.str.value, "var"))
-        return VAR;
-    else if(!(token.str.value, "with"))
-        return WITH;
-
-    return -1;//-1 because 0 can be a 0th lexeme enum
-}
-
-int checkType(lex_token token){
-    //INT, DOUBLE, STRING, NIL
-    if(!strcmp(token.str.value, "Int"))
-        return INT;
-    else if(!strcmp(token.str.value, "Double"))
-        return DOUBLE;
-    else if(!strcmp(token.str.value, "String"))
-        return STRING;
-    else if(!strcmp(token.str.value, "nil"))
-        return NIL;
-    else if(!strcmp(token.str.value, "Int?"))
-        return NILINT;
-    else if(!strcmp(token.str.value, "Double?"))
-        return NILDOUBLE;
-    else if(!strcmp(token.str.value, "String?"))
-        return NILSTRING;
-
-    return -1;//-1 because 0 can be a 0th lexeme enum
-}
-
-int addToStr(lex_token* token, char c){
-    if(token->str.len == token->str.capacity-1){ // don't forget about '\0'
-        token->str.capacity *= 2;
-        token->str.value = (char *)realloc(token->str.value, token->str.capacity);
-        if(token->str.value == NULL)
-            return 1;
-        strZerosFill(token->str.value, token->str.len, token->str.capacity-1);
-    }
-
-    token->str.value[token->str.len++] = c;
-    return 0;
-}
-
-void clearLexToken(lex_token *token)
-{
-    token->lexeme_type = UNDEF;
-    token->int_value = 0;
-    token->double_value = 0;
-
-    if(token->str.value != NULL)
-        free(token->str.value);
-    token->str.value = NULL;
-    token->str.capacity = 0;
-    token->str.len = 0;
-}
+bool eoln_flag; // means that there was an end of line during reading next token, becomes resets to false for every new reading
+bool end_of_file_flag;
 
 ret_t getNextToken(lex_token* token, FILE *input_file)
 {
@@ -99,6 +13,7 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
         ID1S,/* _ */
         KWRD,       // Keyword state
         TYPE,       // Type check state
+        RARROWS,
         DECF2,       // Decimal state (probably for floats)
         DECF,       // Another decimal state
         D2,         // State after first digit (could be used for multi-digit numbers)
@@ -132,13 +47,16 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
     } State;
 
     if(initLexToken(token))
-        return -1;  //vrací -1 když se nepodaří alokovat místo
+        return ANOTHER_ERROR;
     //automaton help variables
     int end = 0;
     int large_str_flag = 0;
     //automaton variables end
     int c;
     int state = S;
+    //flags
+    eoln_flag = false;
+    end_of_file_flag = false;
     while(!end){
         c = fgetc(input_file);
 
@@ -147,108 +65,128 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
         case S:    //Beginning S
             switch (c)
             {
-            case ' ':
-            case '\t':
-            case '\n':
-            case '\r':  //Staying in state S
-                state = S;
-                break;
 
-            case ':':
-                token->lexeme_type = COLON;
-                end = 1;
-                break;
-
-            case ',':
-                token->lexeme_type = COMMA;
-                end = 1;
-                break;
-
-            case '(':
-                token->lexeme_type = LBR1;
-                end = 1;
-                break;
-
-            case ')':
-                token->lexeme_type = RBR1;
-                end = 1;
-                break;
-
-            case '{':
-                token->lexeme_type = LBR2;
-                end = 1;
-                break;
-
-            case '}':
-                token->lexeme_type = RBR2;
-                end = 1;
-                break;
-            
-            case '?':
-                state = QS;
-                break;
-
-            case '_':
-                addToStr(token, (char)c);
-                state = ID1S;
-                break;
-            
-            case '/':
-                state = COM1;
-                break;
-
-            case '"':
-                state = STR;
-                break;
-
-            case '*':
-                token->lexeme_type = MUL;
-                end = 1;
-                break;
-
-            case '-':
-                token->lexeme_type = MINUS;
-                end = 1;
-                break;
-
-            case '+':
-                token->lexeme_type = PLUS;
-                end = 1;
-                break;
-
-            case '!':
-                state = EXCLAMS;
-                break;
-            
-            case '=':
-                state = ASS;
-                break;
-
-            case '>':
-                state = GTS;
-                break;
-
-            case '<':
-                state = LES;
-                break;
-            
-            default:    //Others
-                if(isAlpha((char)c))
-                    state = IDF;
-                else if(isDigit((char)c))
-                    state = INTS;
-                else if(c == EOF){
-                    return -1;
-                }
-                else{
-                    token->lexeme_type = UNDEF;
-                    return LEXICAL_ERROR;
-                }
-                addToStr(token, (char)c);
-                break;
+                
+                case ' ':
+                case '\t':
+                case '\r':  //Staying in state S
+                    state = S;
+                    break;
+    
+                case '\n':
+                    eoln_flag = true;
+                    state = S;
+                    break;
+    
+                case ':':
+                    token->lexeme_type = COLON;
+                    end = 1;
+                    break;
+    
+                case ',':
+                    token->lexeme_type = COMMA;
+                    end = 1;
+                    break;
+    
+                case '(':
+                    token->lexeme_type = LBR1;
+                    end = 1;
+                    break;
+    
+                case ')':
+                    token->lexeme_type = RBR1;
+                    end = 1;
+                    break;
+    
+                case '{':
+                    token->lexeme_type = LBR2;
+                    end = 1;
+                    break;
+    
+                case '}':
+                    token->lexeme_type = RBR2;
+                    end = 1;
+                    break;
+                
+                case '?':
+                    state = QS;
+                    break;
+    
+                case '_':
+                    addToStr(token, (char)c);
+                    state = ID1S;
+                    break;
+                
+                case '/':
+                    state = COM1;
+                    break;
+    
+                case '"':
+                    state = STR;
+                    break;
+    
+                case '*':
+                    token->lexeme_type = MUL;
+                    end = 1;
+                    break;
+    
+                case '-':
+                    state = RARROWS;
+                    break;
+    
+                case '+':
+                    token->lexeme_type = PLUS;
+                    end = 1;
+                    break;
+    
+                case '!':
+                    state = EXCLAMS;
+                    break;
+                
+                case '=':
+                    state = ASS;
+                    break;
+    
+                case '>':
+                    state = GTS;
+                    break;
+    
+                case '<':
+                    state = LES;
+                    break;
+                
+                default:    //Others
+                    if(isAlpha((char)c))
+                        state = IDF;
+                    else if(isDigit((char)c))
+                        state = INTS;
+                    else if(c == EOF){
+                        end_of_file_flag = true;
+                        return -1;
+                    }
+                    else{
+                        token->lexeme_type = UNDEF;
+                        return LEXICAL_ERROR;
+                    }
+                    addToStr(token, (char)c);
+                    break;
             }
             break;  //End S
-
+            
+            
+        case RARROWS:
+            if(c == '>')
+            {
+                token->lexeme_type = RARROW;
+            }
+            else
+            {
+                token->lexeme_type = MINUS;
+                ungetc(c, input_file);
+            }
+            end = 1;
+            break;
+        
         case EXCLAMS:    //Beginning EXCLAMS '!'
             if(c == '='){
                 token->lexeme_type = NEQ;
@@ -308,7 +246,7 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
             break;
 
         case ID1S:
-            if(isAlpha((char)c) || isDigit((char)c)){
+            if(isAlpha((char)c) || isDigit((char)c) || c == '_'){
                addToStr(token, (char)c);
                state = IDF;
             }
@@ -344,6 +282,7 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
                     }
                     else//or not
                         ungetc(c, input_file);
+                    
                     token->lexeme_type = res;
                 }
                 else{//if it is not a type
@@ -571,8 +510,8 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
                     state = ESC3;
                     break;
                 default:
-                    token->lexeme_type = UNDEF;
-                    return LEXICAL_ERROR;
+                    state = ASCII;
+                    break;
             }
             break;
     
@@ -748,7 +687,6 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
     return 0;
 }
 
-
 void printLexeme(lexeme l)
 {
     switch (l) {
@@ -767,7 +705,6 @@ void printLexeme(lexeme l)
         case LET: printf("LET\n"); break;
         case RETURN: printf("RETURN\n"); break;
         case VAR: printf("VAR\n"); break;
-        case WITH: printf("WITH\n"); break;
         case QQ: printf("??\n"); break;
         case EXCLAM: printf("!\n"); break;
         case EQ: printf("==\n"); break;
@@ -789,6 +726,7 @@ void printLexeme(lexeme l)
         case RBR2: printf("}\n"); break;
         case COLON: printf(":\n"); break;
         case COMMA: printf(",\n"); break;
+        case RARROW: printf("->\n"); break;
         case INT_LIT: printf("INT_LIT\n"); break;
         case DOUBLE_LIT: printf("DOUBLE_LIT\n"); break;
         case STRING_LIT: printf("STRING_LIT\n"); break;
@@ -808,4 +746,101 @@ void printLexToken(lex_token token){
     
     printf("double value: %f\n", token.double_value);
     printf("_______________________\n");
+}
+
+
+int initLexToken(lex_token* token)
+{
+    token->lexeme_type = UNDEF;
+    token->double_value = 0.f;
+    token->int_value = 0;
+    
+    if(token->str.value != NULL)
+        free(token->str.value);
+    token->str.value = malloc(sizeof(char) * INIT_STR_SIZE);
+    if(token->str.value == NULL)
+        return 1;
+    token->str.capacity = INIT_STR_SIZE;
+    token->str.len = 0;
+    strZerosFill(token->str.value, 0, token->str.capacity-1);
+    return 0;
+}
+
+void freeLexToken(lex_token *token)
+{
+    if(token->str.value != NULL)
+        free(token->str.value);
+    clearLexToken(token);
+}
+
+void clearLexToken(lex_token *token)
+{
+    token->lexeme_type = UNDEF;
+    token->int_value = 0;
+    token->double_value = 0;
+    token->str.value = NULL;
+    token->str.capacity = 0;
+    token->str.len = 0;
+}
+
+void copyLexToken(lex_token src, lex_token *dst)
+{
+    freeLexToken(dst);
+    *dst = src;
+    dst->str.value = malloc(sizeof(char) * (src.str.len + 1));
+    dst->str.capacity = src.str.len + 1;
+    strcpy(dst->str.value, src.str.value);
+}
+
+int checkKeyword(lex_token token){
+    //IF, WHILE, ELSE, FUNC, LET, RETURN, VAR
+    if(!strcmp(token.str.value, "if"))
+        return IF;
+    else if(!strcmp(token.str.value, "while"))
+        return WHILE;
+    else if(!strcmp(token.str.value, "else"))
+        return ELSE;
+    else if(!strcmp(token.str.value, "func"))
+        return FUNC;
+    else if(!strcmp(token.str.value, "let"))
+        return LET;
+    else if(!strcmp(token.str.value, "return"))
+        return RETURN;
+    else if(!strcmp(token.str.value, "var"))
+        return VAR;
+    
+    return -1;//-1 because 0 can be a 0th lexeme enum
+}
+
+int checkType(lex_token token){
+    //INT, DOUBLE, STRING, NIL
+    if(!strcmp(token.str.value, "Int"))
+        return INT;
+    else if(!strcmp(token.str.value, "Double"))
+        return DOUBLE;
+    else if(!strcmp(token.str.value, "String"))
+        return STRING;
+    else if(!strcmp(token.str.value, "nil"))
+        return NIL;
+    else if(!strcmp(token.str.value, "Int?"))
+        return NILINT;
+    else if(!strcmp(token.str.value, "Double?"))
+        return NILDOUBLE;
+    else if(!strcmp(token.str.value, "String?"))
+        return NILSTRING;
+    
+    return -1;//-1 because 0 can be a 0th lexeme enum
+}
+
+int addToStr(lex_token* token, char c){
+    if(token->str.len == token->str.capacity-1){ // don't forget about '\0'
+        token->str.capacity *= 2;
+        token->str.value = (char *)realloc(token->str.value, token->str.capacity);
+        if(token->str.value == NULL)
+            return 1;
+        strZerosFill(token->str.value, token->str.len, token->str.capacity-1);
+    }
+    
+    token->str.value[token->str.len++] = c;
+    return 0;
 }

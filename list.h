@@ -1,14 +1,11 @@
-//Implementace překladače imperativního jazyka IFJ22
-//Danil Domrachev (xdomra00)
-
-
 #ifndef LIST_H
 #define LIST_H
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "defs.h"
+
+typedef short int ret_t;
 
 typedef struct list_elem
 {
@@ -22,6 +19,8 @@ typedef struct
     unsigned elSize;
     unsigned size;//elements counter
 } List;
+
+
 
 /*
 description
@@ -37,6 +36,7 @@ List* listInit(unsigned elSize);
 /*
 description
     free memory from List data structure
+    if you use structures with pointers inside, take all elements with 'listGet' and free them first, then use this function
 parameters
     lst - List pointer
 return value
@@ -59,6 +59,7 @@ ret_t listAdd(List *lst, void *elem);
 /*
 description
     deletes an i`s element of list
+    if you use structures with pointers inside, take element 'listGet' and free it first, then use this function
 parameters
     lst - list where to delete from
     i - element index beginning with 0

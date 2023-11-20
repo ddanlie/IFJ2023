@@ -1,16 +1,5 @@
 #include "defs.h"
 
-
-void clearSymtbToken(symtb_token token)
-{
-    free(token.id_name);
-    for(int i = 0; i < token.funcArgnamesSize; i++)
-    {
-        free(token.funcArgnames[i]);
-    }
-    free(token.funcArgnames);
-}
-
 int isDigit(char c){   //přidat do defs
     if(c >= '0' && c <= '9')
         return 1;
@@ -29,3 +18,16 @@ int isHex(char c)
         return 1;
     return 0;
 }
+
+
+
+
+
+
+void strZerosFill(char *str, int start_index, int end_index)
+{
+    for(int i = start_index; i <= end_index; i++)
+        str[i] = '\0';
+}
+
+

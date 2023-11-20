@@ -1,12 +1,7 @@
-//Implementace překladače imperativního jazyka IFJ22
-//Danil Domrachev (xdomra00)
-
 #ifndef STACK_H
 #define STACK_H
 
 #include "list.h"
-#include <stdio.h>
-
 
 typedef struct
 {
@@ -28,6 +23,7 @@ Stack* stackInit(unsigned elSize);
 /*
 description
     destroying stack data structure
+    if you use structures with pointers inside, take all elements with 'stackSemiPop' and free them first, then use this function
 parameters
     st - stack pointer to destroy
 return value
@@ -53,7 +49,7 @@ description
 parameters
     st - stack pointer where pop from
 return value
-    void pointer to the first element (need to be freed later)
+    void pointer to the first element (needs to be FREED later)
     NULL if stack is empty
 */
 void* stackPop(Stack *st);
