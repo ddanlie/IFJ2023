@@ -312,6 +312,31 @@ void symtbTokenAddArgName(symtb_token *dst,  lex_token src)
     }
 }
 
+
+void symtbTokenAddArgName2(symtb_token *dst,  char *argname)
+{
+    if(dst->funcArgnames == NULL)
+    {
+        dst->funcArgsCapacity = FUNC_ARGS_INIT_CAPACITY;
+        dst->funcArgnames = malloc(sizeof(char *) * FUNC_ARGS_INIT_CAPACITY);
+        for(int i = 0; i < FUNC_ARGS_INIT_CAPACITY; i++)
+            dst->funcArgnames[i] = NULL;
+    }
+    
+    dst->funcArgnames[dst->funcArgsSize] = malloc(sizeof(char) * (strlen(argname) + 1));
+    strcpy(dst->funcArgnames[dst->funcArgsSize], argname);
+    
+    checkArgsSetSize(dst);
+    
+    if(dst->funcArgsSize == dst->funcArgsCapacity)
+    {
+        dst->funcArgsCapacity *= 2;
+        dst->funcArgnames = realloc(dst->funcArgnames, sizeof(char*)*dst->funcArgsCapacity);
+        for(int i = dst->funcArgsSize; i <  dst->funcArgsCapacity; i++)
+            dst->funcArgnames[i] = NULL;
+    }
+}
+
 void symtbTokenAddArgType(symtb_token *dst, lex_token src)
 {
     if(dst->funcArgTypes == NULL)
@@ -383,6 +408,27 @@ void symtbTokenAddArgType2(symtb_token *dst, symtb_token src)
     }
 }
 
+void symtbTokenAddArgType3(symtb_token *dst, literal_type t)
+{
+    if(dst->funcArgTypes == NULL)
+    {
+        dst->funcArgsCapacity = FUNC_ARGS_INIT_CAPACITY;
+        dst->funcArgTypes = malloc(sizeof(literal_type)*FUNC_ARGS_INIT_CAPACITY);
+        for(int i = 0; i < FUNC_ARGS_INIT_CAPACITY; i++)
+            dst->funcArgTypes[i] = UNDEF_TYPE;
+    }
+    
+    dst->funcArgTypes[dst->funcArgsSize] = t;
+    
+    checkArgsSetSize(dst);
+    
+    if(dst->funcArgsSize == dst->funcArgsCapacity)
+    {
+        dst->funcArgsCapacity *= 2;
+        dst->funcArgTypes = realloc(dst->funcArgTypes, sizeof(literal_type) * dst->funcArgsCapacity);
+    }
+}
+
 void symtbTokenAddLocalArgName(symtb_token *dst,  lex_token src)
 {
     if(dst->funcLocalArgnames == NULL)
@@ -407,3 +453,26 @@ void symtbTokenAddLocalArgName(symtb_token *dst,  lex_token src)
     }
 }
 
+void symtbTokenAddLocalArgName2(symtb_token *dst,  char *locargname)
+{
+    if(dst->funcLocalArgnames == NULL)
+    {
+        dst->funcArgsCapacity = FUNC_ARGS_INIT_CAPACITY;
+        dst->funcLocalArgnames = malloc(sizeof(char *) * FUNC_ARGS_INIT_CAPACITY);
+        for(int i = 0; i < FUNC_ARGS_INIT_CAPACITY; i++)
+            dst->funcLocalArgnames[i] = NULL;
+    }
+    
+    dst->funcLocalArgnames[dst->funcArgsSize] = malloc(sizeof(char) * (strlen(locargname) + 1));
+    strcpy(dst->funcLocalArgnames[dst->funcArgsSize], locargname);
+    
+    checkArgsSetSize(dst);
+    
+    if(dst->funcArgsSize == dst->funcArgsCapacity)
+    {
+        dst->funcArgsCapacity *= 2;
+        dst->funcLocalArgnames = realloc(dst->funcLocalArgnames, sizeof(char*)*dst->funcArgsCapacity);
+        for(int i = dst->funcArgsSize; i < dst->funcArgsCapacity; i++)
+            dst->funcLocalArgnames[i] = NULL;
+    }
+}

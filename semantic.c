@@ -660,6 +660,151 @@ void addFuncVarsToTable(symtb_token func, symtable *stb)
 }
 
 
+void addWrite()
+{
+
+}
+
+void addord()
+{
+    symtb_token func;
+    initSymtbToken(&func);
+    func.lit_type = INT_TYPE;
+    func.initialized = true;
+    symtbTokenCopyName2(&func, "ord");
+    
+    symtbTokenAddArgType3(&func, STRING_TYPE);
+    symtbTokenAddLocalArgName2(&func, "c");
+    symtbTokenAddArgName2(&func, "_");
+    
+    symtb_insert(&global_table, "ord", func);
+    clearSymtbToken(&func);
+}
+
+void addchr()
+{
+    symtb_token func;
+    initSymtbToken(&func);
+    func.lit_type = STRING_TYPE;
+    func.initialized = true;
+    symtbTokenCopyName2(&func, "chr");
+    
+    symtbTokenAddArgType3(&func, INT_TYPE);
+    symtbTokenAddLocalArgName2(&func, "i");
+    symtbTokenAddArgName2(&func, "_");
+    
+    symtb_insert(&global_table, "chr", func);
+    clearSymtbToken(&func);
+}
+
+
+void addSubstring()
+{
+    symtb_token func;
+    initSymtbToken(&func);
+    func.lit_type = NSTRING_TYPE;
+    func.initialized = true;
+    symtbTokenCopyName2(&func, "substring");
+    
+    symtbTokenAddArgType3(&func, STRING_TYPE);
+    symtbTokenAddLocalArgName2(&func, "s");
+    symtbTokenAddArgName2(&func, "of");
+    
+    symtbTokenAddArgType3(&func, INT_TYPE);
+    symtbTokenAddLocalArgName2(&func, "i");
+    symtbTokenAddArgName2(&func, "startingAt");
+    
+    symtbTokenAddArgType3(&func, INT_TYPE);
+    symtbTokenAddLocalArgName2(&func, "j");
+    symtbTokenAddArgName2(&func, "endingBefore");
+    
+    symtb_insert(&global_table, "substring", func);
+    clearSymtbToken(&func);
+}
+
+void addLength()
+{
+    symtb_token func;
+    initSymtbToken(&func);
+    func.lit_type = INT_TYPE;
+    func.initialized = true;
+    symtbTokenCopyName2(&func, "length");
+    
+    symtbTokenAddArgType3(&func, STRING_TYPE);
+    symtbTokenAddLocalArgName2(&func, "s");
+    symtbTokenAddArgName2(&func, "_");
+    
+    symtb_insert(&global_table, "length", func);
+    clearSymtbToken(&func);
+}
+
+
+void addInt2Double()
+{
+    symtb_token func;
+    initSymtbToken(&func);
+    func.lit_type = DOUBLE_TYPE;
+    func.initialized = true;
+    symtbTokenCopyName2(&func, "Int2Double");
+    
+    symtbTokenAddArgType3(&func, INT_TYPE);
+    symtbTokenAddLocalArgName2(&func, "term");
+    symtbTokenAddArgName2(&func, "_");
+    
+    symtb_insert(&global_table, "Int2Double", func);
+    clearSymtbToken(&func);
+}
+
+void addDouble2Int()
+{
+    symtb_token func;
+    initSymtbToken(&func);
+    func.lit_type = INT_TYPE;
+    func.initialized = true;
+    symtbTokenCopyName2(&func, "Double2Int");
+    
+    symtbTokenAddArgType3(&func, DOUBLE_TYPE);
+    symtbTokenAddLocalArgName2(&func, "term");
+    symtbTokenAddArgName2(&func, "_");
+    
+    symtb_insert(&global_table, "Double2Int", func);
+    clearSymtbToken(&func);
+}
+
+void addreadString()
+{
+    symtb_token func;
+    initSymtbToken(&func);
+    func.lit_type = NSTRING_TYPE;
+    func.initialized = true;
+    symtbTokenCopyName2(&func, "readString");
+    symtb_insert(&global_table, "readString", func);
+    clearSymtbToken(&func);
+}
+
+void addreadInt()
+{
+    symtb_token func;
+    initSymtbToken(&func);
+    func.lit_type = NINT_TYPE;
+    func.initialized = true;
+    symtbTokenCopyName2(&func, "readInt");
+    symtb_insert(&global_table, "readInt", func);
+    clearSymtbToken(&func);
+}
+
+
+void addreadDouble()
+{
+    symtb_token func;
+    initSymtbToken(&func);
+    func.lit_type = NDOUBLE_TYPE;
+    func.initialized = true;
+    symtbTokenCopyName2(&func, "readDouble");
+    symtb_insert(&global_table, "readDouble", func);
+    clearSymtbToken(&func);
+}
+
 
 
 

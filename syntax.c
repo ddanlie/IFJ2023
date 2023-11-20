@@ -471,7 +471,11 @@ bool FCALL_PARAM_LIST_2()
         
             freeLexToken(&id1lexemeDummy);
     
-            //read_move();//see FCALL_PARAM_NAME(). we need to read extra lexeme
+            //generator
+            func_call_put_param(current_lex_token, current_called_function.funcArgsSize);
+            //generator end
+            
+            read_move();//see FCALL_PARAM_NAME(). we need to read extra lexeme
             break;
         }
         default:
@@ -563,8 +567,13 @@ bool FCALL_PARAM_LIST()
             symtbTokenAddArgType(&current_called_function, current_lex_token);
     
             freeLexToken(&id1lexemeDummy);
+    
+            //generator
+            func_call_put_param(current_lex_token, current_called_function.funcArgsSize);
+            //generator end
             
-            //read_move();//see FCALL_PARAM_NAME(). we need to read extra lexeme
+            
+            read_move();//see FCALL_PARAM_NAME(). we need to read extra lexeme
             break;
         }
         default:
@@ -589,7 +598,10 @@ bool FUNC_CALL()
     //semantic end
     
     //generator
-    printf("CALL %s\n", current_lex_token.str.value);
+    lex_token tmp;
+    clearLexToken(&tmp);
+    initLexToken(&tmp);
+    copyLexToken(previous_lex_token, &tmp);
     //generator end
     
     read_move();
@@ -599,8 +611,12 @@ bool FUNC_CALL()
         return false;
     read_move();
     
+    //generator
+    printf("CALL %s\n", tmp.str.value);
+    clearLexToken(&tmp);
+    //generator end
     
-
+    
     
     //semantic
     if(current_called_function.initialized)
@@ -623,9 +639,6 @@ bool FUNC_CALL()
     }
     //semantic end
     
-    
-    
-
     
     
     return true;
@@ -743,6 +756,9 @@ bool VARDEF()
     
     if(currLexTokenIs(AS))
     {
+        //semantic
+        clearSymtbToken(&current_called_function);
+        //semantic end
         read_move();
         if(!OPT_VAR_EXPR())
             return false;
@@ -761,7 +777,9 @@ bool VARDEF()
     
     //semantic
     if(!vardefCompareTypeExpr(&current_symtb_token, current_expr_type))
-        return false;
+        if(!vardefCompareTypeExpr(&current_symtb_token, current_called_function.lit_type))
+            return false;
+    
     
     addVarToFrame(current_symtb_token);
     
@@ -774,6 +792,12 @@ bool VARDEF()
         free(generator_temp_res_name);
         generator_temp_res_name = NULL;
     }
+    else if(current_called_function.lit_type != UNDEF_TYPE)
+    {
+        move(varname, "GF@%retval");
+    }
+
+    
     free(varname);
     //generator end
     
@@ -1083,6 +1107,8 @@ bool FUNCDEF()
         return false;
     
     //generator
+    char *funcdefend = generate_label();
+    printf("JUMP %s\n", funcdefend);
     printf("LABEL %s\n", current_lex_token.str.value);
     //generator end
     
@@ -1118,6 +1144,12 @@ bool FUNCDEF()
     
     if(!FUNC_BLOCK())
         return false;
+    
+    //generator
+    printf("LABEL %s\n", funcdefend);
+    free(funcdefend);
+    //generator end
+    
     
     //semantic
     clearSymtbToken(&current_defined_function);
@@ -1737,6 +1769,21 @@ void read_move()
     }
 }
 
+
+void add_builtin_funcs()
+{
+    addInt2Double();
+    addDouble2Int();
+    addreadString();
+    addreadInt();
+    addreadDouble();
+    addLength();
+    addSubstring();
+    addord();
+    addchr();
+    addWrite();
+}
+
 void init_analyzer(FILE *input_file)
 {
     readfile = input_file;
@@ -1758,6 +1805,7 @@ void init_analyzer(FILE *input_file)
     initSymtbToken(&current_called_function);
     undefined_functions = stackInit(sizeof(symtb_token));
     
+    add_builtin_funcs();
     //generator
     prepare();
     //generator end
@@ -1803,16 +1851,6 @@ void err_exit(ret_t ret)
     exit(prepared_return(ret));
 }
 
-////check if called function is in tables. If not - get func name for adding to undefined_functions later. If yes - get that function
-//void searchCalledFunction(lex_token function)
-//{
-//    if(!getFromGlobalTable(function.str.value, &current_called_function))
-//    {
-//        symtbTokenCopyName(&current_called_function, function);
-//        current_called_function.initialized = false;
-//    }
-//}
-
 bool getFromEverywhere(char *id, symtb_token **found, symtable **table_found)
 {
     if(getFromLocalTables(id, found, table_found))
@@ -1852,39 +1890,6 @@ bool getFromLocalTables(char *id, symtb_token **token_found, symtable **table_fo
         return true;
     }
     
-//    stackResetSemiPop(local_tables);
-//    symtable *local_table = stackSemiPop(local_tables);
-//    if(local_table == NULL)
-//    {
-//        token_found = NULL;
-//        table_found = NULL;
-//        return false;
-//    }
-//    node = symtb_find(*local_table, id, NULL);
-//    if(node != NULL)
-//    {
-//        if(token_found != NULL)
-//            *token_found = &node->token;
-//        if(table_found != NULL)
-//            *table_found = local_table;
-//        stackResetSemiPop(local_tables);
-//        return true;
-//    }
-//    while(node != NULL)
-//    {
-//        local_table = (symtable*)stackSemiPop(local_tables);
-//        if(node != NULL)
-//        {
-//            if(token_found != NULL)
-//                *token_found = &node->token;
-//            if(table_found != NULL)
-//                *table_found = local_table;
-//            stackResetSemiPop(local_tables);
-//            return true;
-//        }
-//        node = symtb_find(*local_table, id, NULL);
-//    }
-
     stackResetSemiPop(local_tables);
     symtable *local_table = stackSemiPop(local_tables);
     

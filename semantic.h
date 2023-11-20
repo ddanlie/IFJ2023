@@ -22,4 +22,18 @@ void addFuncVarsToTable(symtb_token func, symtable *tb);
 void addVarToFrame(symtb_token current_symtb_token);
 
 
+void addInt2Double();
+void addDouble2Int();
+void addreadString();
+void addreadInt();
+void addreadDouble();
+void addLength();
+void addSubstring();
+void addord();
+void addchr();
+void addWrite();
+
+
+
+
 #endif //SEMANTIC_H
