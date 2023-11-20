@@ -1287,20 +1287,27 @@ bool BRANCH()
 
 bool ITERATION()
 {
+    //generator
+    char *whilelbl = generate_label();
+    char *exitlbl = generate_label();
+    printf("LABEL %s\n", whilelbl);
+    //generator end
+    
     if(!EXPR())
         return false;
-    
-    if(generator_temp_res_name != NULL)
-    {
-        free(generator_temp_res_name);
-        generator_temp_res_name = NULL;
-    }
     
     if(current_expr_type != BOOL_TYPE)
     {
         analysis_error = TYPE_COMPAT_ERROR;
         return false;
     }
+    
+    //generator
+    addr3op("NOT", generator_temp_res_name, generator_temp_res_name, NULL);
+    printf("JUMPIFEQ %s %s %s\n", exitlbl, generator_temp_res_name, "bool@true");
+    free(generator_temp_res_name);
+    generator_temp_res_name = NULL;
+    //generator end
     
     if(!currLexTokenIs(LBR2))
         return false;
@@ -1309,6 +1316,15 @@ bool ITERATION()
         return false;
     
     read_move();//command must read next lexeme
+    
+    //generator
+    jump(whilelbl);
+    printf("LABEL %s\n", exitlbl);
+    free(whilelbl);
+    free(exitlbl);
+    //generator end
+    
+    
     
     return true;
 }
