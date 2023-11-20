@@ -515,7 +515,7 @@ bool FCALL_PARAM_LIST()
             if(currLexTokenIs(ID))
             {
                 symtb_token *tkn;
-                if(!getFromGlobalTable(current_lex_token.str.value, &tkn))//use prev as curr
+                if(!getFromGlobalTable(current_lex_token.str.value, &tkn) || !(tkn->initialized))//use prev as curr
                 {
                     if(!getFromLocalTables(current_lex_token.str.value, &tkn, NULL) || !(tkn->initialized))//use prev as curr
                     {
@@ -530,12 +530,20 @@ bool FCALL_PARAM_LIST()
             {
                 symtbTokenAddArgType(&current_called_function, current_lex_token);
             }
-            
+    
+            //generator
+            func_call_put_param(current_lex_token, current_called_function.funcArgsSize);
+            //generator end
             
             //FCALL_PARAM_NAME
             copyLexToken(tmp, &current_lex_token);//stop using prev as curr
             freeLexToken(&tmp);
             //FCALL_PARAM_NAME end
+    
+
+    
+    
+    
             break;
         }
         case INT_LIT:
@@ -580,11 +588,19 @@ bool FUNC_CALL()
         current_called_function.initialized = false;
     //semantic end
     
+    //generator
+    printf("CALL %s\n", current_lex_token.str.value);
+    //generator end
+    
     read_move();
     if(!FCALL_PARAM_LIST())
         return false;
     if(!currLexTokenIs(RBR1))
         return false;
+    read_move();
+    
+    
+
     
     //semantic
     if(current_called_function.initialized)
@@ -604,10 +620,14 @@ bool FUNC_CALL()
         initSymtbToken(&topush);
         copySymtbToken(&topush, current_called_function);
         stackPush(undefined_functions, &topush);
-        clearSymtbToken(&current_called_function);
     }
     //semantic end
-    read_move();
+    
+    
+    
+
+    
+    
     return true;
 }
 
@@ -837,8 +857,13 @@ bool RET_EXPR()
 {
     if(EXPR())
     {
+        //generator
+        move("GF@%retval", generator_temp_res_name);
         free(generator_temp_res_name);
         generator_temp_res_name = NULL;
+        //generator end
+        
+        
         //semantic. check if expr type corresponds to return type
         if(current_defined_function.lit_type == VOID_TYPE)
         {
@@ -891,6 +916,11 @@ bool RET_EXPR()
         }
         //semantic end
     }
+    
+    //generator
+    printf("RETURN\n");
+    //generator end
+    
     return true;
 }
 
@@ -920,12 +950,22 @@ bool FUNC_COMMAND()
 
 bool FUNC_BLOCK()
 {
+    
+    //generator
+    printf("PUSHFRAME\n");
+    printf("CREATEFRAME\n");
+    //generator end
+    
+    
     //semantic
     //stackPush(local_tables, &temporary_table);//curr level is always = 0
     symtb_clear(temporary_table);
     temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
     current_local_level += 1;
     temporary_table.local_level = current_local_level;
+    
+
+    
     
 //    symtb_token *later = stackPop(add_later_stack);
 //    while(later != NULL)
@@ -938,6 +978,10 @@ bool FUNC_BLOCK()
     
     addFuncVarsToTable(current_defined_function, &temporary_table);
     //semantic end
+    
+    //generator
+    funcdef_define_temp_params(current_defined_function);
+    //generator end
     
     if(!currLexTokenIs(LBR2))
         return false;
@@ -954,7 +998,7 @@ bool FUNC_BLOCK()
     //semantic end
     
     //generator
-    printf("CREATEFRAME\n");
+    printf("POPFRAME\n");
     //generator end
     
     return true;
@@ -1037,6 +1081,10 @@ bool FUNCDEF()
 {
     if(!currLexTokenIs(ID))
         return false;
+    
+    //generator
+    printf("LABEL %s\n", current_lex_token.str.value);
+    //generator end
     
     //semantic
     if(funcRedefinition(current_lex_token.str.value))
@@ -1129,6 +1177,17 @@ bool ID_COMMAND()
         {
             if(!compareIDtoFuncReturn(current_symtb_token, current_called_function))
                 return false;
+    
+            //generator
+            if(current_called_function.lit_type != VOID_TYPE)
+            {
+                char *varname = get_var_name(current_symtb_token.id_name);
+                move(varname, "GF@%retval");
+                free(varname);
+            }
+            //generator end
+            
+            
             clearSymtbToken(&current_called_function);
         }
         clearSymtbToken(&current_symtb_token);
@@ -1140,6 +1199,21 @@ bool ID_COMMAND()
         if(!FUNC_CALL())
             return false;
         read_move();//command must read next lexeme
+        
+        
+        //generator
+        if(current_called_function.lit_type != VOID_TYPE)
+        {
+            char *varname = get_var_name(current_symtb_token.id_name);
+            move(varname, "GF@%retval");
+            free(varname);
+        }
+        //generator end
+    
+        //semantic
+        clearSymtbToken(&current_called_function);
+        clearSymtbToken(&current_symtb_token);
+        //semantic end
     }
     else
         return false;

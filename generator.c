@@ -8,8 +8,9 @@ void prepare()
 {
     printf(".ifjcode23\n");
     printf("CREATEFRAME\n");
-    printf("DEFVAR %s\n", helpvar1);
-    printf("DEFVAR %s\n", helpvar2);
+    defvar(helpvar1);
+    defvar(helpvar2);
+    defvar("GF@%retval");
 }
 
 void defvar(char *name)
@@ -273,5 +274,43 @@ void pass_vars_to_global()
         }
         free(tfname);
 
+    }
+}
+
+
+void funcdef_define_temp_params(symtb_token func)
+{
+    for(int i = 0; i < func.funcArgsSize; i++)
+    {
+        if(0 == strcmp(func.funcLocalArgnames[i], "_"))
+            continue;
+    
+        char *vname = get_var_name(func.funcLocalArgnames[i]);
+        defvar(vname);
+        char buf[100];
+        sprintf(buf, "LF@%%%d", i+1);
+        move(vname, buf);
+        free(vname);
+    }
+}
+
+void func_call_put_param(lex_token param, int param_number)
+{
+    char *fmt = "TF@%%%d";
+    char pname[MAX_VAR_NAME_LENGTH];
+    sprintf(pname, fmt, param_number);
+    defvar(pname);
+    
+    if(param.lexeme_type == ID)
+    {
+        char *vname = get_var_name(param.str.value);
+        move(pname, vname);
+        free(vname);
+    }
+    else
+    {
+        char *litname = get_literal_name(param);
+        move(pname, litname);
+        free(litname);
     }
 }
