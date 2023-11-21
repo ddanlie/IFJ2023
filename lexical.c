@@ -510,8 +510,8 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
                     state = ESC3;
                     break;
                 default:
-                    token->lexeme_type = UNDEF;
-                    return LEXICAL_ERROR;
+                    state = ASCII;
+                    break;
             }
             break;
     
@@ -671,7 +671,12 @@ ret_t getNextToken(lex_token* token, FILE *input_file)
                 addToStr(token, (char) c);
                 quotesTogetherCount = 0;
                 state = ASCII;
-            } else //c <= ASCII_REPR_START
+            }
+            else if(c == -1)
+            {
+                return LEXICAL_ERROR;
+            }
+            else //c <= ASCII_REPR_START
             {
                 addToStr(token, (char) c);
                 quotesTogetherCount = 0;

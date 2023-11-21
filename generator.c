@@ -8,9 +8,23 @@ void prepare()
 {
     printf(".ifjcode23\n");
     printf("CREATEFRAME\n");
+    defvar("GF@___$expr_res$___");
+    defvar("GF@___$recursion$___");
+    move("GF@___$recursion$___", "bool@false");
     defvar(helpvar1);
     defvar(helpvar2);
     defvar("GF@%retval");
+    printf("PUSHS int@0\n");//stack param counter initialization
+    generateInt2Double();
+    generateDouble2Int();
+    generatereadString();
+    generatereadInt();
+    generatereadDouble();
+    generateLength();
+    generateSubstring();
+    generateord();
+    generatechr();
+    generateWrite();
 }
 
 void defvar(char *name)
@@ -165,6 +179,29 @@ char *get_var_name(char *var)
 }
 
 
+char* convert_string(const char* inputStr) {
+    
+    size_t input_length = strlen(inputStr);
+    char* resultStr = (char *)malloc(sizeof(char)*input_length * 5 );
+    size_t i = 0, j = 0;
+    for (; i < input_length; i++)
+    {
+        char current = inputStr[i];
+        
+        if (((int)current >= 0 && (int)current <= 32) || (int)current == 35 || (int)current == 92)
+        {
+            sprintf(resultStr + j, "\\%03d", (int)current);
+            j+=4;
+        }
+        else
+        {
+            resultStr[j++] = current;
+        }
+    }
+    resultStr[j] = '\0';
+    return resultStr;
+}
+
 char *get_literal_name(lex_token lt)
 {
     char buf[MAX_LITERAL_LENGTH];
@@ -177,7 +214,9 @@ char *get_literal_name(lex_token lt)
         }
         case STRING_LIT:
         {
-            sprintf(buf, "string@%a", lt.str.value);
+            char *tmp = convert_string( lt.str.value);
+            sprintf(buf, "string@%s", tmp);
+            free(tmp);
             break;
         }
         case INT_LIT:
@@ -198,6 +237,16 @@ char *get_literal_name(lex_token lt)
     return res;
 }
 
+
+char *get_int_literal_name(int x)
+{
+    char buf[MAX_LITERAL_LENGTH];
+    sprintf(buf, "int@%d", x);
+    char *res = malloc(sizeof(char)* (strlen(buf)+1));
+    strcpy(res, buf);
+    return res;
+}
+
 char* generate_label()
 {
     static int counter = 0;
@@ -207,38 +256,6 @@ char* generate_label()
     strcpy(res, buf);
     counter++;
     return res;
-}
-
-void convert_string(const char *in_str, char *out_str) {
-    int i, j = 0;
-    for (i = 0; in_str[i] != '\0'; i++)
-    {
-        if (in_str[i] == ' ')
-        {
-            sprintf(&out_str[j], "\032");
-            j += 4;
-        }
-        else if (in_str[i] == '\\')
-        {
-            sprintf(&out_str[j], "\\092");
-            j += 4;
-        }
-        else if (in_str[i] == '\n')
-        {
-            sprintf(&out_str[j], "\\010");
-            j += 4;
-        }
-        else if (in_str[i] == '#')
-        {
-            sprintf(&out_str[j], "\035");
-            j += 4;
-        }
-        else {
-            out_str[j] = in_str[i];
-            j++;
-    }
-}
-out_str[j] = '\0';
 }
 
 //see get_var_name()
@@ -262,8 +279,14 @@ void pass_vars_to_global()
         }
         else
         {
+            char *defskip_lbl = generate_label();
+            printf("JUMPIFEQ %s GF@___$recursion$___ bool@true\n", defskip_lbl);
             defvar(codename);
+            printf("LABEL %s\n", defskip_lbl);
+            free(defskip_lbl);
+            
             move(codename, tfname);
+            
             
             symtb_token defined;
             initSymtbToken(&defined);
@@ -277,6 +300,27 @@ void pass_vars_to_global()
     }
 }
 
+void return_passed_vars()
+{
+    int local_lvl = temporary_table.local_level;
+    for(int i = 0; i < temporary_table.capacity; i++)
+    {
+        if(temporary_table.symtb_arr[i].deleted)
+            continue;
+        
+        char codename[MAX_VAR_NAME_LENGTH];
+        sprintf(codename, lowlevel_var_format, "GF", temporary_table.symtb_arr[i].token.id_name, local_lvl);
+        //printf("-----------codename = %s---------\n", codename);
+        char *tfname = get_var_name(temporary_table.symtb_arr[i].token.id_name);
+        //printf("-----------tfname = %s---------\n", tfname);
+        symtb_token *found;
+        if(getFromGlobalTable(codename, &found))
+        {
+            move(tfname, codename);
+        }
+        
+    }
+}
 
 void funcdef_define_temp_params(symtb_token func)
 {
@@ -287,30 +331,264 @@ void funcdef_define_temp_params(symtb_token func)
     
         char *vname = get_var_name(func.funcLocalArgnames[i]);
         defvar(vname);
-        char buf[100];
-        sprintf(buf, "LF@%%%d", i+1);
-        move(vname, buf);
+        printf("POPS %s\n", vname);
         free(vname);
     }
 }
 
-void func_call_put_param(lex_token param, int param_number)
+void write_call_put_param(lex_token param, symtb_token called_fun)
 {
-    char *fmt = "TF@%%%d";
-    char pname[MAX_VAR_NAME_LENGTH];
-    sprintf(pname, fmt, param_number);
-    defvar(pname);
-    
+    printf("POPS %s\n", helpvar1);
+    printf("ADD %s %s int@1\n", helpvar1, helpvar1);
     if(param.lexeme_type == ID)
     {
         char *vname = get_var_name(param.str.value);
-        move(pname, vname);
+        printf("PUSHS %s\n", vname);
         free(vname);
     }
     else
     {
         char *litname = get_literal_name(param);
-        move(pname, litname);
+        printf("PUSHS %s\n", litname);
         free(litname);
     }
+    printf("PUSHS %s\n", helpvar1);
+}
+
+
+void func_call_put_param(lex_token param,  symtb_token called_fun)
+{
+    if(0 == strcmp(called_fun.id_name, "write"))
+    {
+        write_call_put_param(param, called_fun);
+        return;
+    }
+    
+    
+    if(param.lexeme_type == ID)
+    {
+        char *vname = get_var_name(param.str.value);
+        printf("PUSHS %s\n", vname);
+        free(vname);
+    }
+    else
+    {
+        char *litname = get_literal_name(param);
+        printf("PUSHS %s\n", litname);
+        free(litname);
+    }
+}
+
+
+void generateInt2Double()
+{
+    printf("JUMP $Int2DoubleEND\n"
+           "LABEL Int2Double\n"
+           "PUSHFRAME\n"
+           "CREATEFRAME\n"
+           "DEFVAR TF@%%1\n"
+           "POPS TF@%%1\n"
+           "INT2FLOAT GF@%%retval TF@%%1\n"
+           "POPFRAME\n"
+           "RETURN\n"
+           "LABEL $Int2DoubleEND\n");
+}
+
+void generateDouble2Int()
+{
+    printf("JUMP $Double2IntEND\n"
+           "LABEL Double2Int\n"
+           "PUSHFRAME\n"
+           "CREATEFRAME\n"
+           "DEFVAR TF@%%1\n"
+           "POPS TF@%%1\n"
+           "FLOAT2INT GF@%%retval TF@%%1\n"
+           "POPFRAME\n"
+           "RETURN\n"
+           "LABEL $Double2IntEND\n");
+}
+
+void generatereadString()
+{
+    printf("JUMP $readStringEND\n"
+           "LABEL readString\n"
+           "PUSHFRAME\n"
+           "CREATEFRAME\n"
+           "READ GF@%%retval string\n"
+           "POPFRAME\n"
+           "RETURN\n"
+           "LABEL $readStringEND\n");
+}
+
+void generatereadInt()
+{
+    printf("JUMP $readIntEND\n"
+           "LABEL readInt\n"
+           "PUSHFRAME\n"
+           "CREATEFRAME\n"
+           "READ GF@%%retval int\n"
+           "DEFVAR TF@readtype\n"
+           "TYPE TF@readtype GF@%%retval\n"
+           "JUMPIFNEQ $%%notinttype TF@readtype string@int\n"
+           "JUMP $%%readIntRet\n"
+           "LABEL $%%notinttype\n"
+           "MOVE GF@%%retval nil@nil\n"
+           "LABEL $%%readIntRet\n"
+           "POPFRAME\n"
+           "RETURN\n"
+           "LABEL $readIntEND\n");
+}
+
+void generatereadDouble()
+{
+    printf("JUMP $readDoubleEND\n"
+           "LABEL readDouble\n"
+           "PUSHFRAME\n"
+           "CREATEFRAME\n"
+           "READ GF@%%retval float\n"
+           "DEFVAR TF@readtype\n"
+           "TYPE TF@readtype GF@%%retval\n"
+           "JUMPIFNEQ $%%notDtype TF@readtype string@float\n"
+           "JUMP $%%readDRet\n"
+           "LABEL $%%notDtype\n"
+           "MOVE GF@%%retval nil@nil\n"
+           "LABEL $%%readDRet\n"
+           "POPFRAME\n"
+           "RETURN\n"
+           "LABEL $readDoubleEND\n");
+}
+
+void generateLength()
+{
+    printf("JUMP $lengthEND\n"
+           "LABEL length\n"
+           "PUSHFRAME\n"
+           "CREATEFRAME\n"
+           "DEFVAR TF@%%1\n"
+           "POPS TF@%%1\n"
+           "STRLEN GF@%%retval TF@%%1\n"
+           "POPFRAME\n"
+           "RETURN\n"
+           "LABEL $lengthEND\n");
+}
+
+void generateSubstring()
+{
+    printf("JUMP $substringEND\n"
+           "LABEL substring\n"
+           "PUSHFRAME\n"
+           "CREATEFRAME\n"
+           "DEFVAR TF@counter\n"
+           "DEFVAR TF@end\n"
+           "DEFVAR TF@startstr\n"
+           "DEFVAR TF@finstr\n"
+           "DEFVAR TF@sym\n"
+           "DEFVAR TF@len\n"
+           "DEFVAR TF@errfound\n"
+           "POPS TF@end\n"
+           "POPS TF@counter\n"
+           "POPS TF@startstr\n"
+           "MOVE TF@finstr string@\n"
+           "STRLEN TF@len TF@startstr\n"
+           "LT TF@errfound TF@counter int@0\n"
+           "JUMPIFEQ $%%err TF@errfound bool@true\n"
+           "LT TF@errfound TF@end int@0\n"
+           "JUMPIFEQ $%%err TF@errfound bool@true\n"
+           "GT TF@errfound TF@counter TF@end\n"
+           "JUMPIFEQ $%%err TF@errfound bool@true\n"
+           "EQ TF@errfound TF@counter TF@end\n"
+           "JUMPIFEQ $%%err TF@errfound bool@true\n"
+           "GT TF@errfound TF@counter TF@len\n"
+           "JUMPIFEQ $%%err TF@errfound bool@true\n"
+           "EQ TF@errfound TF@counter TF@len\n"
+           "JUMPIFEQ $%%err TF@errfound bool@true\n"
+           "GT TF@errfound TF@end TF@len\n"
+           "JUMPIFEQ $%%err TF@errfound bool@true\n"
+           "LABEL $%%cycle\n"
+           "GETCHAR TF@sym TF@startstr TF@counter\n"
+           "CONCAT TF@finstr TF@finstr TF@sym\n"
+           "ADD TF@counter TF@counter int@1\n"
+           "JUMPIFEQ $%%cycleend TF@counter TF@end\n"
+           "JUMP $%%cycle\n"
+           "LABEL $%%err\n"
+           "MOVE GF@%%retval nil@nil\n"
+           "JUMP $%%retstr\n"
+           "LABEL $%%cycleend\n"
+           "MOVE GF@%%retval TF@finstr\n"
+           "LABEL $%%retstr\n"
+           "POPFRAME\n"
+           "RETURN\n"
+           "LABEL $substringEND\n");
+}
+
+void generateord()
+{
+    printf("JUMP $ordEND\n"
+           "LABEL ord\n"
+           "PUSHFRAME\n"
+           "CREATEFRAME\n"
+           "DEFVAR TF@str\n"
+           "POPS TF@str\n"
+           "JUMPIFEQ $%%nilstr TF@str nil@nil\n"
+           "STRI2INT GF@%%retval TF@str int@0\n"
+           "JUMP $%%ordreturn\n"
+           "LABEL $%%nilstr\n"
+           "MOVE GF@%%retval int@0\n"
+           "LABEL $%%ordreturn\n"
+           "POPFRAME\n"
+           "RETURN\n"
+           "LABEL $ordEND\n");
+}
+
+void generatechr()
+{
+    printf("JUMP $chrEND\n"
+           "LABEL chr\n"
+           "PUSHFRAME\n"
+           "CREATEFRAME\n"
+           "DEFVAR TF@sym\n"
+           "POPS TF@sym\n"
+           "DEFVAR TF@errfound\n"
+           "LT TF@errfound TF@sym int@0\n"
+           "JUMPIFEQ $%%chrerr TF@errfound bool@true\n"
+           "GT TF@errfound TF@sym int@255\n"
+           "JUMPIFEQ $%%echrrr TF@errfound bool@true\n"
+           "JUMP $%%retsym\n"
+           "LABEL $%%chrerr \n"
+           "EXIT int@58\n"
+           "LABEL $%%retsym\n"
+           "INT2CHAR GF@%%retval TF@sym\n"
+           "POPFRAME\n"
+           "RETURN\n"
+           "LABEL $chrEND\n");
+}
+
+void generateWrite()
+{
+        printf("DEFVAR GF@%%cntr$out\n"
+               "DEFVAR GF@%%cntr$fr\n"
+               "JUMP $writeEnd \n"
+               "LABEL write \n"
+               "PUSHFRAME\n"
+               "CREATEFRAME\n"
+               "POPS GF@%%cntr$out\n"
+               "MOVE GF@%%cntr$fr GF@%%cntr$out\n"
+               "JUMPIFNEQ $%%writepushcycle GF@%%cntr$fr int@0\n"
+               "LABEL $%%writepushcycle\n"
+               "PUSHFRAME\n"
+               "CREATEFRAME\n"
+               "DEFVAR TF@%%out\n"
+               "POPS TF@%%out\n"
+               "SUB GF@%%cntr$fr GF@%%cntr$fr int@1\n"
+               "JUMPIFNEQ $%%writepushcycle GF@%%cntr$fr int@0\n"
+               "JUMPIFNEQ $%%writeoutcycle GF@%%cntr$out int@0\n"
+               "LABEL $%%writeoutcycle\n"
+               "WRITE TF@%%out\n"
+               "POPFRAME\n"
+               "SUB GF@%%cntr$out GF@%%cntr$out int@1\n"
+               "JUMPIFNEQ $%%writeoutcycle GF@%%cntr$out int@0\n"
+               "PUSHS int@0\n"
+               "POPFRAME\n"
+               "RETURN\n"
+               "LABEL $writeEnd\n");
 }

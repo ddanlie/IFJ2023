@@ -18,7 +18,13 @@ lexeme current_expr_lexeme;
 Stack *add_later_stack;
 literal_type current_expr_type;
 char *generator_temp_res_name;
+char *generator_expr_res_name;
+bool expr_is_literal;
+bool insideFunction;
 
+void blockStuffBefore();
+void blockStuffAfter();
+void iterBlockStuffBefore(char *lbl);
 bool GLOBAL_COMMAND_LIST();
 bool LOCAL_COMMAND_LIST();
 bool FUNC_COMMAND_LIST();
@@ -158,6 +164,8 @@ void printExprStack(Stack *st)
 //careful! ID can be INT_LIT,STRING_LIT or DOUBLE_LIT. Control it before semantic check
 bool EXPR()
 {
+    expr_is_literal = true;
+    generator_expr_res_name = NULL;
     generator_temp_res_name = NULL;
     current_expr_type = UNDEF_TYPE;
     
@@ -344,10 +352,14 @@ bool EXPR()
     if(expr_lex_helper_2->exp_lex != ID1)
         itsok = false;
     //generator
-    char *s = generator_temp_res_name;
-    generator_temp_res_name = malloc(sizeof(char)*(strlen(s)+1));
-    strcpy(generator_temp_res_name, s);
+    generator_expr_res_name = "GF@___$expr_res$___";
+    move(generator_expr_res_name, generator_temp_res_name);
+//    char *s = generator_temp_res_name;
+//    generator_temp_res_name = malloc(sizeof(char)*(strlen(s)+1));
+//    strcpy(generator_temp_res_name, s);
     //generator end
+    
+    
     expr_lex_helper_2 = stackSemiPop(expr_stack);
     if(expr_lex_helper_2->exp_lex != UNDEF)
         itsok = false;
@@ -432,14 +444,11 @@ bool FCALL_PARAM_LIST_2()
             if(currLexTokenIs(ID))
             {
                 symtb_token *tkn;
-                if(!getFromGlobalTable(current_lex_token.str.value, &tkn))
+                if(!getFromEverywhere(current_lex_token.str.value,  &tkn, NULL) || !(tkn->initialized))
                 {
-                    if(!getFromLocalTables(current_lex_token.str.value, &tkn, NULL) || !(tkn->initialized))
-                    {
-                        //undefined variable
-                        analysis_error = VAR_INIT_ERROR;
-                        return false;
-                    }
+                    //undefined variable
+                    analysis_error = VAR_INIT_ERROR;
+                    return false;
                 }
                 symtbTokenAddArgType2(&current_called_function, *tkn);
             }
@@ -447,6 +456,12 @@ bool FCALL_PARAM_LIST_2()
             {
                 symtbTokenAddArgType(&current_called_function, current_lex_token);
             }
+    
+            //generator
+            func_call_put_param(current_lex_token, current_called_function);
+            //generator end
+            
+            
             //FCALL_PARAM_NAME
             copyLexToken(tmp, &current_lex_token);//stop using prev as curr
             freeLexToken(&tmp);
@@ -472,7 +487,7 @@ bool FCALL_PARAM_LIST_2()
             freeLexToken(&id1lexemeDummy);
     
             //generator
-            func_call_put_param(current_lex_token, current_called_function.funcArgsSize);
+            func_call_put_param(current_lex_token, current_called_function);
             //generator end
             
             read_move();//see FCALL_PARAM_NAME(). we need to read extra lexeme
@@ -519,14 +534,11 @@ bool FCALL_PARAM_LIST()
             if(currLexTokenIs(ID))
             {
                 symtb_token *tkn;
-                if(!getFromGlobalTable(current_lex_token.str.value, &tkn) || !(tkn->initialized))//use prev as curr
+                if(!getFromEverywhere(current_lex_token.str.value,  &tkn, NULL) || !(tkn->initialized))
                 {
-                    if(!getFromLocalTables(current_lex_token.str.value, &tkn, NULL) || !(tkn->initialized))//use prev as curr
-                    {
-                        //undefined variable
-                        analysis_error = VAR_INIT_ERROR;
-                        return false;
-                    }
+                    //undefined variable
+                    analysis_error = VAR_INIT_ERROR;
+                    return false;
                 }
                 symtbTokenAddArgType2(&current_called_function, *tkn);
             }
@@ -536,7 +548,7 @@ bool FCALL_PARAM_LIST()
             }
     
             //generator
-            func_call_put_param(current_lex_token, current_called_function.funcArgsSize);
+            func_call_put_param(current_lex_token, current_called_function);
             //generator end
             
             //FCALL_PARAM_NAME
@@ -569,7 +581,7 @@ bool FCALL_PARAM_LIST()
             freeLexToken(&id1lexemeDummy);
     
             //generator
-            func_call_put_param(current_lex_token, current_called_function.funcArgsSize);
+            func_call_put_param(current_lex_token, current_called_function);
             //generator end
             
             
@@ -593,6 +605,7 @@ bool FUNC_CALL()
     current_called_function.type = FUNCTION;
     symtbTokenCopyName(&current_called_function, previous_lex_token);//previous = 'ID'  current = '('
     symtb_token *found_function;
+    current_called_function.initialized = true;
     if(!getFromGlobalTable(previous_lex_token.str.value, &found_function))//if function with ID is not found
         current_called_function.initialized = false;
     //semantic end
@@ -604,6 +617,7 @@ bool FUNC_CALL()
     copyLexToken(previous_lex_token, &tmp);
     //generator end
     
+    
     read_move();
     if(!FCALL_PARAM_LIST())
         return false;
@@ -612,6 +626,8 @@ bool FUNC_CALL()
     read_move();
     
     //generator
+    if(current_defined_function.lit_type != UNDEF_TYPE && (0 == strcmp(current_defined_function.id_name, current_called_function.id_name)))//recursion
+        printf("MOVE GF@___$recursion$___ bool@true\n");
     printf("CALL %s\n", tmp.str.value);
     clearLexToken(&tmp);
     //generator end
@@ -786,18 +802,15 @@ bool VARDEF()
     //generator
     char *varname = get_var_name(current_symtb_token.id_name);
     defvar(varname);
-    if(generator_temp_res_name != NULL)
+    if(generator_expr_res_name != NULL && current_expr_type != BOOL_TYPE && current_expr_type != UNDEF_TYPE)
     {
-        move(varname, generator_temp_res_name);
-        free(generator_temp_res_name);
-        generator_temp_res_name = NULL;
+        move(varname, generator_expr_res_name);
+        generator_expr_res_name = NULL;
     }
     else if(current_called_function.lit_type != UNDEF_TYPE)
     {
         move(varname, "GF@%retval");
     }
-
-    
     free(varname);
     //generator end
     
@@ -882,9 +895,8 @@ bool RET_EXPR()
     if(EXPR())
     {
         //generator
-        move("GF@%retval", generator_temp_res_name);
-        free(generator_temp_res_name);
-        generator_temp_res_name = NULL;
+        move("GF@%retval", generator_expr_res_name);
+        generator_expr_res_name = NULL;
         //generator end
         
         
@@ -926,13 +938,9 @@ bool RET_EXPR()
     }
     else
     {
-        if(generator_temp_res_name != NULL)
-        {
-            free(generator_temp_res_name);
-            generator_temp_res_name = NULL;
-        }
         //semantic. check if return type corresponds to void
-        analysis_error = NO_ERROR;
+        if(analysis_error != NO_ERROR)
+            return false;
         if(current_defined_function.lit_type != VOID_TYPE)
         {
             analysis_error = RET_VAL_ERROR;
@@ -942,6 +950,7 @@ bool RET_EXPR()
     }
     
     //generator
+    printf("POPFRAME\n");
     printf("RETURN\n");
     //generator end
     
@@ -976,9 +985,10 @@ bool FUNC_BLOCK()
 {
     
     //generator
+    pass_vars_to_global();
     printf("PUSHFRAME\n");
     printf("CREATEFRAME\n");
-    //generator end
+    //generator ends
     
     
     //semantic
@@ -987,8 +997,6 @@ bool FUNC_BLOCK()
     temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
     current_local_level += 1;
     temporary_table.local_level = current_local_level;
-    
-
     
     
 //    symtb_token *later = stackPop(add_later_stack);
@@ -1007,6 +1015,10 @@ bool FUNC_BLOCK()
     funcdef_define_temp_params(current_defined_function);
     //generator end
     
+    
+   
+    
+    
     if(!currLexTokenIs(LBR2))
         return false;
     read_move();
@@ -1014,6 +1026,11 @@ bool FUNC_BLOCK()
         return false;
     if(!currLexTokenIs(RBR2))
         return false;
+    
+    
+    
+   
+    
     
     //semantic
     current_local_level -= 1;
@@ -1023,6 +1040,7 @@ bool FUNC_BLOCK()
     
     //generator
     printf("POPFRAME\n");
+    return_passed_vars();
     //generator end
     
     return true;
@@ -1107,10 +1125,12 @@ bool FUNCDEF()
         return false;
     
     //generator
-    char *funcdefend = generate_label();
-    printf("JUMP %s\n", funcdefend);
-    printf("LABEL %s\n", current_lex_token.str.value);
+    lex_token func_name_lbl;
+    clearLexToken(&func_name_lbl);
+    initLexToken(&func_name_lbl);
+    copyLexToken(current_lex_token, &func_name_lbl);
     //generator end
+    
     
     //semantic
     if(funcRedefinition(current_lex_token.str.value))
@@ -1142,10 +1162,22 @@ bool FUNCDEF()
     addVarToFrame(current_defined_function);
     //semantic end
     
-    if(!FUNC_BLOCK())
-        return false;
     
     //generator
+    
+    char *funcdefend = generate_label();
+    printf("JUMP %s\n", funcdefend);
+    printf("LABEL %s\n", func_name_lbl.str.value);
+    freeLexToken(&func_name_lbl);
+    //generator end
+    
+    insideFunction = true;
+    if(!FUNC_BLOCK())
+        return false;
+    insideFunction = false;
+    
+    //generator
+    printf("MOVE GF@___$recursion$___ bool@false\n");
     printf("LABEL %s\n", funcdefend);
     free(funcdefend);
     //generator end
@@ -1194,15 +1226,15 @@ bool ID_COMMAND()
             return false;
         
         //semantic
+        foundvar->initialized = true;
         if(current_called_function.type == UNDEF_ID)//it was the expression we assigned to variable
         {
-            vardefCompareTypeExpr(&current_symtb_token, current_expr_type);
+            vardefCompareTypeExpr(&current_symtb_token, current_expr_type);//type is not copied from expression it is assignment command
             //generator
             char *varname = get_var_name(current_symtb_token.id_name);
-            move(varname, generator_temp_res_name);
+            move(varname, generator_expr_res_name);
+            generator_expr_res_name = NULL;
             free(varname);
-            free(generator_temp_res_name);
-            generator_temp_res_name = NULL;
             //generator end
         }
         else//it was function call
@@ -1230,15 +1262,18 @@ bool ID_COMMAND()
     {
         if(!FUNC_CALL())
             return false;
-        read_move();//command must read next lexeme
+        //read_move();//command must read next lexeme
         
         
         //generator
         if(current_called_function.lit_type != VOID_TYPE)
         {
-            char *varname = get_var_name(current_symtb_token.id_name);
-            move(varname, "GF@%retval");
-            free(varname);
+            if(current_symtb_token.id_name != NULL)
+            {
+                char *varname = get_var_name(current_symtb_token.id_name);
+                move(varname, "GF@%retval");
+                free(varname);
+            }
         }
         //generator end
     
@@ -1297,17 +1332,20 @@ bool BRANCH_CANDIDATE()
 
 bool BRANCH()
 {
+    
+    blockStuffBefore();
+    
     if(!BRANCH_CANDIDATE())
         return false;
     
+    
     //generator
     char *elseLabel = generate_label();
-    if(generator_temp_res_name != NULL)
+    if(generator_expr_res_name != NULL)
     {
-        addr3op("NOT", generator_temp_res_name, generator_temp_res_name, NULL);
-        printf("JUMPIFEQ %s %s %s\n", elseLabel, generator_temp_res_name, "bool@true");
-        free(generator_temp_res_name);
-        generator_temp_res_name = NULL;
+        addr3op("NOT", generator_expr_res_name, generator_expr_res_name, NULL);
+        printf("JUMPIFEQ %s %s %s\n", elseLabel, generator_expr_res_name, "bool@true");
+        generator_expr_res_name = NULL;
     }
     //generator end
     
@@ -1330,7 +1368,6 @@ bool BRANCH()
         {
             case NINT_TYPE:
                 unnilled.lit_type = INT_TYPE;
-
                 break;
             case NSTRING_TYPE:
                 unnilled.lit_type = STRING_TYPE;
@@ -1387,6 +1424,9 @@ bool BRANCH()
     free(elseLabel);
     free(exitLabel);
     //generator end
+    
+    blockStuffAfter();
+    
     return true;
 }
 
@@ -1396,11 +1436,17 @@ bool ITERATION()
     //generator
     char *whilelbl = generate_label();
     char *exitlbl = generate_label();
+    //iterBlockStuffBefore(whilelbl);
+    blockStuffBefore();
     printf("LABEL %s\n", whilelbl);
+    
     //generator end
     
+    blockStuffBefore();
     if(!EXPR())
         return false;
+    
+    blockStuffAfter();
     
     if(current_expr_type != BOOL_TYPE)
     {
@@ -1409,11 +1455,12 @@ bool ITERATION()
     }
     
     //generator
-    addr3op("NOT", generator_temp_res_name, generator_temp_res_name, NULL);
-    printf("JUMPIFEQ %s %s %s\n", exitlbl, generator_temp_res_name, "bool@true");
-    free(generator_temp_res_name);
-    generator_temp_res_name = NULL;
+    addr3op("NOT", generator_expr_res_name, generator_expr_res_name, NULL);
+    printf("JUMPIFEQ %s %s %s\n", exitlbl, generator_expr_res_name, "bool@true");
+    generator_expr_res_name = NULL;
     //generator end
+    
+    
     
     if(!currLexTokenIs(LBR2))
         return false;
@@ -1421,13 +1468,17 @@ bool ITERATION()
     if(!BLOCK())
         return false;
     
+    
+    
     read_move();//command must read next lexeme
+    
     
     //generator
     jump(whilelbl);
     printf("LABEL %s\n", exitlbl);
     free(whilelbl);
     free(exitlbl);
+    blockStuffAfter();
     //generator end
     
     
@@ -1451,9 +1502,21 @@ bool LOCAL_COMMAND()
         case WHILE:
             read_move();
             return ITERATION();
+        case RETURN:
+        {
+            if(!insideFunction)
+                return false;
+            read_move();
+            if(!RET_EXPR())
+                return false;
+
+            break;
+        }
         default:
             return false;
     }
+    
+    return true;
 }
 
 bool GLOBAL_COMMAND()
@@ -1511,6 +1574,7 @@ bool LOCAL_COMMAND_LIST()
         case IF:
         case LET:
         case WHILE:
+        case RETURN:
             if(!LOCAL_COMMAND())
                 return false;
             //all commands read one extra lexeme, no need for read_move()
@@ -1531,7 +1595,57 @@ bool LOCAL_COMMAND_LIST()
     return true;
 }
 
-bool BLOCK()
+
+void iterBlockStuffBefore(char *lbl)
+{
+    if(current_local_level == 0)
+    {
+        symtb_clear(temporary_table);
+        printf("LABEL %s\n", lbl);
+    }
+    else
+    {
+        stackPush(local_tables, &temporary_table);
+        //generator
+        pass_vars_to_global();
+        printf("LABEL %s\n", lbl);
+        printf("PUSHFRAME\n");
+        printf("CREATEFRAME\n");
+        //generator end
+    }
+    
+    //semantic
+    temporary_table = symtb_init(SYMTABLE_INIT_SIZE);
+    current_local_level += 1;
+    temporary_table.local_level = current_local_level;
+    
+    symtb_token *later = stackPop(add_later_stack);
+    while(later != NULL)
+    {
+        //generator
+        char *vname_before_insert = get_var_name(later->id_name);
+        // printf("--------- vname before = %s\n ---------", vname_before_insert);
+        //generator end
+        
+        symtb_insert(&temporary_table, later->id_name, *later);
+        
+        //generator
+        char *vname = get_var_name(later->id_name);
+        //printf("--------- vname after = %s\n---------", vname_before_insert);
+        defvar(vname);
+        move(vname, vname_before_insert);
+        free(vname);
+        free(vname_before_insert);
+        //generator end
+        
+        clearSymtbToken(later);
+        free(later);
+        later = stackPop(add_later_stack);
+    }
+    //semantic end
+}
+
+void blockStuffBefore()
 {
     if(current_local_level == 0)
     {
@@ -1576,14 +1690,10 @@ bool BLOCK()
         later = stackPop(add_later_stack);
     }
     //semantic end
-    
+}
 
-    
-    if(!LOCAL_COMMAND_LIST())
-        return false;
-    if(!currLexTokenIs(RBR2))
-        return false;
-    
+void blockStuffAfter()
+{
     //semantic
     current_local_level -= 1;
     symtb_clear(temporary_table);
@@ -1595,6 +1705,7 @@ bool BLOCK()
     //semantic end
     
     //generator
+
     if(current_local_level == 0)
     {
         printf("CREATEFRAME\n");
@@ -1602,8 +1713,25 @@ bool BLOCK()
     else
     {
         printf("POPFRAME\n");
+        return_passed_vars();
     }
+   
     //generator end
+}
+
+
+
+bool BLOCK()
+{
+    blockStuffBefore();
+    
+    if(!LOCAL_COMMAND_LIST())
+        return false;
+    if(!currLexTokenIs(RBR2))
+        return false;
+    
+    blockStuffAfter();
+    
     return true;
 }
 
@@ -1804,8 +1932,9 @@ void init_analyzer(FILE *input_file)
     temporary_table.local_level = 0;
     initSymtbToken(&current_called_function);
     undefined_functions = stackInit(sizeof(symtb_token));
-    
     add_builtin_funcs();
+    expr_is_literal = false;
+    insideFunction = false;
     //generator
     prepare();
     //generator end

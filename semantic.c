@@ -87,27 +87,97 @@ bool isFuncDefined(char *func)
     return false;
 }
 
-bool compareFunctionsSignature(symtb_token f1, symtb_token f2)
+
+bool compareFunctionsSignature(symtb_token orig, symtb_token called)
 {
+
     bool res = true;
-    if(f1.type != f2.type)//that would be really strange
+    if(orig.type != called.type)//that would be really strange
         res = false;
-    if(f1.funcArgsSize != f2.funcArgsSize)
-        res = false;
-    if(f1.lit_type != f2.lit_type)//return types
+    if(orig.lit_type != called.lit_type)//return types
         res = false;
     
-    for(int i = 0; i < f1.funcArgsSize; i++)
+    if(0 == strcmp(orig.id_name, "write"))
     {
-        if(f1.funcArgTypes != f2.funcArgTypes)
+        return true;
+    }
+    
+    if(orig.funcArgsSize != called.funcArgsSize)
+        res = false;
+
+    
+    for(int i = 0; i < orig.funcArgsSize; i++)
+    {
+        switch(called.funcArgTypes[i])
         {
-            res = false;
-            break;
+            case NIL_TYPE: case NINT_NIL_TYPE: case NSTRING_NIL_TYPE: case NDOUBLE_NIL_TYPE:
+            {
+                if(!(orig.funcArgTypes[i] == NSTRING_TYPE || orig.funcArgTypes[i] == NINT_TYPE
+                    || orig.funcArgTypes[i] == NDOUBLE_TYPE))
+                {
+                    res = false;
+                }
+                break;
+            }
+            case INT_TYPE:
+            {
+                if(!(orig.funcArgTypes[i] == NINT_TYPE || orig.funcArgTypes[i] == INT_TYPE))
+                {
+                    res = false;
+                }
+                break;
+            }
+            case NINT_TYPE:
+            {
+                if(orig.funcArgTypes[i] != NINT_TYPE)
+                {
+                    res = false;
+                }
+                break;
+            }
+            case DOUBLE_TYPE:
+            {
+                if(!(orig.funcArgTypes[i] == NDOUBLE_TYPE || orig.funcArgTypes[i] == DOUBLE_TYPE))
+                {
+                    res = false;
+                }
+                break;
+            }
+            case NDOUBLE_TYPE:
+            {
+                if(orig.funcArgTypes[i] != NDOUBLE_TYPE)
+                {
+                    res = false;
+                }
+                break;
+            }
+            case NSTRING_TYPE:
+            {
+                if(orig.funcArgTypes[i] != NSTRING_TYPE)
+                {
+                    res = false;
+                }
+                break;
+            }
+            case STRING_TYPE:
+            {
+                if(!(orig.funcArgTypes[i] == NSTRING_TYPE || orig.funcArgTypes[i] == STRING_TYPE))
+                {
+                    res = false;
+                }
+                break;
+            }
+            default:
+                res = false;
+                break;
         }
         
-        if(0 != strcmp(f1.funcArgnames[i], "_"))
+        if(!res)
+            break;
+        
+        if(0 != strcmp(orig.funcArgnames[i], "_"))
         {
-            if(0 != strcmp(f1.funcArgnames[i], f2.funcArgnames[i]))
+            if(0 != strcmp(orig.funcArgnames[i], called.funcArgnames[i]))
             {
                 res = false;
                 break;
@@ -116,9 +186,7 @@ bool compareFunctionsSignature(symtb_token f1, symtb_token f2)
     }
     
     if(!res)
-    {
         analysis_error = FUNC_PARAM_ERROR;
-    }
     return res;
 }
 
@@ -235,6 +303,18 @@ bool vardefCompareTypeExpr(symtb_token *var, literal_type expr_type)
             //does expression correspond to type?
             if(var->lit_type == INT_TYPE && expr_type == INT_TYPE)
             {
+                return true;
+            }
+            else if(var->lit_type == DOUBLE_TYPE && expr_type == DOUBLE_TYPE)
+            {
+                return true;
+            }
+            else if((var->lit_type == DOUBLE_TYPE || var->lit_type == NDOUBLE_TYPE) && expr_type == INT_TYPE && expr_is_literal)
+            {
+                //generator
+                printf("INT2FLOAT %s %s\n", generator_expr_res_name, generator_expr_res_name);
+                expr_is_literal = false;
+                //generator end
                 return true;
             }
             else if(var->lit_type == DOUBLE_TYPE && expr_type == DOUBLE_TYPE)
@@ -373,7 +453,10 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
             stackResetSemiPop(expr_stack);
             if(!setLiteralType(&current_expr_type, el->lxtoken, true))//we do not use el->type as it is not present
                 return false;
-    
+            
+            if(el->lxtoken.lexeme_type == ID)
+                expr_is_literal = false;
+            
             //generator
             generator_temp_res_name = generate_expr_var_name();
             if(el->lxtoken.lexeme_type == ID)//variable
@@ -404,9 +487,19 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
                 case NSTRING_NIL_TYPE:
                     analysis_error = TYPE_COMPAT_ERROR;
                     return false;
+                case NINT_TYPE:
+                    current_expr_type = INT_TYPE;
+                    break;
+                case NDOUBLE_TYPE:
+                    current_expr_type = DOUBLE_TYPE;
+                    break;
+                case NSTRING_TYPE:
+                    current_expr_type = STRING_TYPE;
+                    break;
                 default:
                     break;
             }
+            
             //generator
             generator_temp_res_name = generate_expr_var_name();
             move(generator_temp_res_name, el->generator_tmp_name);
@@ -425,7 +518,6 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
             stackResetSemiPop(expr_stack);
     
             //generator
-            bool wasop = false;
             generator_temp_res_name = generate_expr_var_name();
             //generator end
             
@@ -435,26 +527,39 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
                 {
                     current_expr_type = STRING_TYPE;
                     addr3op("CONCAT", generator_temp_res_name, op1->generator_tmp_name, op2->generator_tmp_name);
-                    wasop = true;
                     break;
                 }
             }
-            
+    
             if(op1->type == INT_TYPE && op2->type == INT_TYPE)
             {
                 current_expr_type = INT_TYPE;
             }
-            else if(op1->type == DOUBLE_TYPE && op2->type == DOUBLE_TYPE)
+            else if(op1->type == DOUBLE_TYPE && op2->type == DOUBLE_TYPE )
             {
                 current_expr_type = DOUBLE_TYPE;
             }
-            else if(op1->type == INT_TYPE && op1->lxtoken.lexeme_type == INT_LIT && op2->type == DOUBLE_TYPE)
+            else if(op1->lxtoken.lexeme_type != ID || op2->lxtoken.lexeme_type != ID)
             {
-                current_expr_type = DOUBLE_TYPE;
-            }
-            else if(op1->type == DOUBLE_TYPE && op2->type == INT_TYPE && op2->lxtoken.lexeme_type == INT_LIT)
-            {
-                current_expr_type = DOUBLE_TYPE;
+                if(op1->type == INT_TYPE && op1->lxtoken.lexeme_type == INT_LIT && op2->type == DOUBLE_TYPE)
+                {
+                    current_expr_type = DOUBLE_TYPE;
+                    //generator
+                    printf("INT2FLOAT %s %s\n", op1->generator_tmp_name, op1->generator_tmp_name);
+                    //generator end
+                }
+                else if(op1->type == DOUBLE_TYPE && op2->type == INT_TYPE && op2->lxtoken.lexeme_type == INT_LIT)
+                {
+                    current_expr_type = DOUBLE_TYPE;
+                    //generator
+                    printf("INT2FLOAT %s %s\n", op2->generator_tmp_name, op2->generator_tmp_name);
+                    //generator end
+                }
+                else
+                {
+                    analysis_error = TYPE_COMPAT_ERROR;
+                    return false;
+                }
             }
             else
             {
@@ -466,8 +571,7 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
             //generator
             //             0   1   2     3      4      5       6
             char *ops[] = {"", "", "", "MUL", "DIV", "PLUS", "MINUS"};
-            if(!wasop)
-                addr3op(ops[rule_index], generator_temp_res_name, op1->generator_tmp_name, op2->generator_tmp_name);
+            addr3op(ops[rule_index], generator_temp_res_name, op1->generator_tmp_name, op2->generator_tmp_name);
             //generator end
             
             break;
@@ -500,11 +604,17 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
             }
             else if(op1->type == INT_TYPE && op1->lxtoken.lexeme_type == INT_LIT && op2->type == DOUBLE_TYPE)//conversion  with literal only
             {
+                //generator
+                printf("INT2FLOAT %s %s\n", op1->generator_tmp_name, op1->generator_tmp_name);
+                //generator end
                 current_expr_type = BOOL_TYPE;
             }
             else if(op1->type == DOUBLE_TYPE && op2->type == INT_TYPE && op2->lxtoken.lexeme_type == INT_LIT)//conversion  with literal only
             {
                 current_expr_type = BOOL_TYPE;
+                //generator
+                printf("INT2FLOAT %s %s\n", op2->generator_tmp_name, op2->generator_tmp_name);
+                //generator end
             }
             else if(op1->type == STRING_TYPE && op2->type == STRING_TYPE)
             {
@@ -540,7 +650,22 @@ bool ruleTypeCheck(int rule_index, Stack *expr_stack)
             stackSemiPop(expr_stack);
             expr_lexeme *op1 = stackSemiPop(expr_stack);
             stackResetSemiPop(expr_stack);
-            
+    
+            if(op1->type == INT_TYPE && op1->lxtoken.lexeme_type == INT_LIT && op2->type == DOUBLE_TYPE)//conversion  with literal only
+            {
+                //generator
+                printf("INT2FLOAT %s %s\n", op1->generator_tmp_name, op1->generator_tmp_name);
+                //generator end
+                current_expr_type = BOOL_TYPE;
+            }
+            else if(op1->type == DOUBLE_TYPE && op2->type == INT_TYPE && op2->lxtoken.lexeme_type == INT_LIT)//conversion  with literal only
+            {
+                current_expr_type = BOOL_TYPE;
+                //generator
+                printf("INT2FLOAT %s %s\n", op2->generator_tmp_name, op2->generator_tmp_name);
+                //generator end
+            }
+            else
             if(op2->type != op1->type)
             {
                 analysis_error = TYPE_COMPAT_ERROR;
@@ -662,7 +787,14 @@ void addFuncVarsToTable(symtb_token func, symtable *stb)
 
 void addWrite()
 {
-
+    symtb_token func;
+    initSymtbToken(&func);
+    func.lit_type = VOID_TYPE;
+    func.type = FUNCTION;
+    func.initialized = true;
+    symtbTokenCopyName2(&func, "write");
+    symtb_insert(&global_table, "write", func);
+    clearSymtbToken(&func);
 }
 
 void addord()
@@ -670,6 +802,7 @@ void addord()
     symtb_token func;
     initSymtbToken(&func);
     func.lit_type = INT_TYPE;
+    func.type = FUNCTION;
     func.initialized = true;
     symtbTokenCopyName2(&func, "ord");
     
@@ -686,6 +819,7 @@ void addchr()
     symtb_token func;
     initSymtbToken(&func);
     func.lit_type = STRING_TYPE;
+    func.type = FUNCTION;
     func.initialized = true;
     symtbTokenCopyName2(&func, "chr");
     
@@ -703,6 +837,7 @@ void addSubstring()
     symtb_token func;
     initSymtbToken(&func);
     func.lit_type = NSTRING_TYPE;
+    func.type = FUNCTION;
     func.initialized = true;
     symtbTokenCopyName2(&func, "substring");
     
@@ -727,6 +862,7 @@ void addLength()
     symtb_token func;
     initSymtbToken(&func);
     func.lit_type = INT_TYPE;
+    func.type = FUNCTION;
     func.initialized = true;
     symtbTokenCopyName2(&func, "length");
     
@@ -744,6 +880,7 @@ void addInt2Double()
     symtb_token func;
     initSymtbToken(&func);
     func.lit_type = DOUBLE_TYPE;
+    func.type = FUNCTION;
     func.initialized = true;
     symtbTokenCopyName2(&func, "Int2Double");
     
@@ -760,6 +897,7 @@ void addDouble2Int()
     symtb_token func;
     initSymtbToken(&func);
     func.lit_type = INT_TYPE;
+    func.type = FUNCTION;
     func.initialized = true;
     symtbTokenCopyName2(&func, "Double2Int");
     
@@ -776,6 +914,7 @@ void addreadString()
     symtb_token func;
     initSymtbToken(&func);
     func.lit_type = NSTRING_TYPE;
+    func.type = FUNCTION;
     func.initialized = true;
     symtbTokenCopyName2(&func, "readString");
     symtb_insert(&global_table, "readString", func);
@@ -787,6 +926,7 @@ void addreadInt()
     symtb_token func;
     initSymtbToken(&func);
     func.lit_type = NINT_TYPE;
+    func.type = FUNCTION;
     func.initialized = true;
     symtbTokenCopyName2(&func, "readInt");
     symtb_insert(&global_table, "readInt", func);
@@ -799,6 +939,7 @@ void addreadDouble()
     symtb_token func;
     initSymtbToken(&func);
     func.lit_type = NDOUBLE_TYPE;
+    func.type = FUNCTION;
     func.initialized = true;
     symtbTokenCopyName2(&func, "readDouble");
     symtb_insert(&global_table, "readDouble", func);

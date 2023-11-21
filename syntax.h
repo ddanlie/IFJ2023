@@ -7,6 +7,8 @@
 #include "semantic.h"
 #include "generator.h"
 
+
+
 extern ret_t analysis_error;
 extern lex_token current_lex_token;
 extern lex_token previous_lex_token;
@@ -21,6 +23,8 @@ extern int current_local_level;
 extern lexeme current_expr_lexeme;
 extern Stack *add_later_stack;
 extern char *generator_temp_res_name;
+extern bool expr_is_literal;
+extern char *generator_expr_res_name;
 
 extern literal_type current_expr_type;
 
