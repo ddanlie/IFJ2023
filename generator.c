@@ -9,19 +9,21 @@ void prepare()
     printf(".ifjcode23\n");
     printf("CREATEFRAME\n");
     defvar("GF@___$expr_res$___");
+    defvar("GF@___$recursion$___");
+    move("GF@___$recursion$___", "bool@false");
     defvar(helpvar1);
     defvar(helpvar2);
     defvar("GF@%retval");
     printf("PUSHS int@0\n");//stack param counter initialization
-    generateInt2Double();
-    generateDouble2Int();
-    generatereadString();
+    //generateInt2Double();
+    //generateDouble2Int();
+    //generatereadString();
     generatereadInt();
-    generatereadDouble();
-    generateLength();
-    generateSubstring();
-    generateord();
-    generatechr();
+    //generatereadDouble();
+    //generateLength();
+    //generateSubstring();
+    //generateord();
+    //generatechr();
     generateWrite();
 }
 
@@ -277,9 +279,14 @@ void pass_vars_to_global()
         }
         else
         {
-            
+            char *defskip_lbl = generate_label();
+            printf("JUMPIFEQ %s GF@___$recursion$___ bool@true\n", defskip_lbl);
             defvar(codename);
+            printf("LABEL %s\n", defskip_lbl);
+            free(defskip_lbl);
+            
             move(codename, tfname);
+            
             
             symtb_token defined;
             initSymtbToken(&defined);
@@ -324,9 +331,7 @@ void funcdef_define_temp_params(symtb_token func)
     
         char *vname = get_var_name(func.funcLocalArgnames[i]);
         defvar(vname);
-        char buf[100];
-        sprintf(buf, "LF@%%%d", i+1);
-        move(vname, buf);
+        printf("POPS %s\n", vname);
         free(vname);
     }
 }
@@ -351,42 +356,25 @@ void write_call_put_param(lex_token param, symtb_token called_fun)
 }
 
 
-void func_call_put_param(lex_token param,  symtb_token called_fun, bool reset)
+void func_call_put_param(lex_token param,  symtb_token called_fun)
 {
-    static unsigned long long args_defined = 0;
-    if(reset)
-    {
-        args_defined = 0;
-        return;
-    }
-    
     if(0 == strcmp(called_fun.id_name, "write"))
     {
         write_call_put_param(param, called_fun);
         return;
     }
     
-    char *fmt = "TF@%%%d";
-    char pname[MAX_VAR_NAME_LENGTH];
-    sprintf(pname, fmt, called_fun.funcArgsSize);
-    
-    if(called_fun.funcArgsSize > args_defined)
-    {
-        defvar(pname);
-        args_defined++;
-    }
-    
     
     if(param.lexeme_type == ID)
     {
         char *vname = get_var_name(param.str.value);
-        move(pname, vname);
+        printf("PUSHS %s\n", vname);
         free(vname);
     }
     else
     {
         char *litname = get_literal_name(param);
-        move(pname, litname);
+        printf("PUSHS %s\n", litname);
         free(litname);
     }
 }
@@ -398,7 +386,9 @@ void generateInt2Double()
            "LABEL Int2Double\n"
            "PUSHFRAME\n"
            "CREATEFRAME\n"
-           "INT2FLOAT GF@%%retval LF@%%1\n"
+           "DEFVAR TF@%%1\n"
+           "POPS TF@%%1\n"
+           "INT2FLOAT GF@%%retval TF@%%1\n"
            "POPFRAME\n"
            "RETURN\n"
            "LABEL $Int2DoubleEND\n");
@@ -410,7 +400,9 @@ void generateDouble2Int()
            "LABEL Double2Int\n"
            "PUSHFRAME\n"
            "CREATEFRAME\n"
-           "FLOAT2INT GF@%%retval LF@%%1\n"
+           "DEFVAR TF@%%1\n"
+           "POPS TF@%%1\n"
+           "FLOAT2INT GF@%%retval TF@%%1\n"
            "POPFRAME\n"
            "RETURN\n"
            "LABEL $Double2IntEND\n");
@@ -472,7 +464,9 @@ void generateLength()
            "LABEL length\n"
            "PUSHFRAME\n"
            "CREATEFRAME\n"
-           "STRLEN GF@%%retval LF@%%1\n"
+           "DEFVAR TF@%%1\n"
+           "POPS TF@%%1\n"
+           "STRLEN GF@%%retval TF@%%1\n"
            "POPFRAME\n"
            "RETURN\n"
            "LABEL $lengthEND\n");
@@ -491,9 +485,9 @@ void generateSubstring()
            "DEFVAR TF@sym\n"
            "DEFVAR TF@len\n"
            "DEFVAR TF@errfound\n"
-           "MOVE TF@startstr LF@%%1\n"
-           "MOVE TF@counter LF@%%2\n"
-           "MOVE TF@end LF@%%3\n"
+           "POPS TF@end\n"
+           "POPS TF@counter\n"
+           "POPS TF@startstr\n"
            "MOVE TF@finstr string@\n"
            "STRLEN TF@len TF@startstr\n"
            "LT TF@errfound TF@counter int@0\n"
@@ -534,7 +528,7 @@ void generateord()
            "PUSHFRAME\n"
            "CREATEFRAME\n"
            "DEFVAR TF@str\n"
-           "MOVE TF@str LF@%%1\n"
+           "POPS TF@str\n"
            "JUMPIFEQ $%%nilstr TF@str nil@nil\n"
            "STRI2INT GF@%%retval TF@str int@0\n"
            "JUMP $%%ordreturn\n"
@@ -553,7 +547,7 @@ void generatechr()
            "PUSHFRAME\n"
            "CREATEFRAME\n"
            "DEFVAR TF@sym\n"
-           "MOVE TF@sym LF@%%1\n"
+           "POPS TF@sym\n"
            "DEFVAR TF@errfound\n"
            "LT TF@errfound TF@sym int@0\n"
            "JUMPIFEQ $%%chrerr TF@errfound bool@true\n"

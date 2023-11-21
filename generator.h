@@ -21,7 +21,7 @@ char* generate_label();
 void pass_vars_to_global();
 void jump(char *lbl);
 void funcdef_define_temp_params(symtb_token func);
-void func_call_put_param(lex_token param, symtb_token called_fun, bool reset);
+void func_call_put_param(lex_token param,  symtb_token called_fun);
 
 void pass_vars_to_global();
 void return_passed_vars();

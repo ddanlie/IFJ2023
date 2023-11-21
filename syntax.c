@@ -20,6 +20,7 @@ literal_type current_expr_type;
 char *generator_temp_res_name;
 char *generator_expr_res_name;
 bool expr_is_literal;
+bool insideFunction;
 
 void blockStuffBefore();
 void blockStuffAfter();
@@ -457,7 +458,7 @@ bool FCALL_PARAM_LIST_2()
             }
     
             //generator
-            func_call_put_param(current_lex_token, current_called_function, false);
+            func_call_put_param(current_lex_token, current_called_function);
             //generator end
             
             
@@ -486,7 +487,7 @@ bool FCALL_PARAM_LIST_2()
             freeLexToken(&id1lexemeDummy);
     
             //generator
-            func_call_put_param(current_lex_token, current_called_function, false);
+            func_call_put_param(current_lex_token, current_called_function);
             //generator end
             
             read_move();//see FCALL_PARAM_NAME(). we need to read extra lexeme
@@ -547,7 +548,7 @@ bool FCALL_PARAM_LIST()
             }
     
             //generator
-            func_call_put_param(current_lex_token, current_called_function, false);
+            func_call_put_param(current_lex_token, current_called_function);
             //generator end
             
             //FCALL_PARAM_NAME
@@ -580,7 +581,7 @@ bool FCALL_PARAM_LIST()
             freeLexToken(&id1lexemeDummy);
     
             //generator
-            func_call_put_param(current_lex_token, current_called_function, false);
+            func_call_put_param(current_lex_token, current_called_function);
             //generator end
             
             
@@ -625,11 +626,10 @@ bool FUNC_CALL()
     read_move();
     
     //generator
+    if(current_defined_function.lit_type != UNDEF_TYPE && (0 == strcmp(current_defined_function.id_name, current_called_function.id_name)))//recursion
+        printf("MOVE GF@___$recursion$___ bool@true\n");
     printf("CALL %s\n", tmp.str.value);
     clearLexToken(&tmp);
-    
-    
-    func_call_put_param(current_lex_token, current_symtb_token, true);
     //generator end
     
     
@@ -950,6 +950,7 @@ bool RET_EXPR()
     }
     
     //generator
+    printf("POPFRAME\n");
     printf("RETURN\n");
     //generator end
     
@@ -984,6 +985,7 @@ bool FUNC_BLOCK()
 {
     
     //generator
+    pass_vars_to_global();
     printf("PUSHFRAME\n");
     printf("CREATEFRAME\n");
     //generator ends
@@ -1014,6 +1016,9 @@ bool FUNC_BLOCK()
     //generator end
     
     
+   
+    
+    
     if(!currLexTokenIs(LBR2))
         return false;
     read_move();
@@ -1035,6 +1040,7 @@ bool FUNC_BLOCK()
     
     //generator
     printf("POPFRAME\n");
+    return_passed_vars();
     //generator end
     
     return true;
@@ -1165,10 +1171,13 @@ bool FUNCDEF()
     freeLexToken(&func_name_lbl);
     //generator end
     
+    insideFunction = true;
     if(!FUNC_BLOCK())
         return false;
+    insideFunction = false;
     
     //generator
+    printf("MOVE GF@___$recursion$___ bool@false\n");
     printf("LABEL %s\n", funcdefend);
     free(funcdefend);
     //generator end
@@ -1493,9 +1502,21 @@ bool LOCAL_COMMAND()
         case WHILE:
             read_move();
             return ITERATION();
+        case RETURN:
+        {
+            if(!insideFunction)
+                return false;
+            read_move();
+            if(!RET_EXPR())
+                return false;
+
+            break;
+        }
         default:
             return false;
     }
+    
+    return true;
 }
 
 bool GLOBAL_COMMAND()
@@ -1553,6 +1574,7 @@ bool LOCAL_COMMAND_LIST()
         case IF:
         case LET:
         case WHILE:
+        case RETURN:
             if(!LOCAL_COMMAND())
                 return false;
             //all commands read one extra lexeme, no need for read_move()
@@ -1687,7 +1709,6 @@ void blockStuffAfter()
     if(current_local_level == 0)
     {
         printf("CREATEFRAME\n");
-        func_call_put_param(current_lex_token, current_symtb_token, true);
     }
     else
     {
@@ -1913,6 +1934,7 @@ void init_analyzer(FILE *input_file)
     undefined_functions = stackInit(sizeof(symtb_token));
     add_builtin_funcs();
     expr_is_literal = false;
+    insideFunction = false;
     //generator
     prepare();
     //generator end
