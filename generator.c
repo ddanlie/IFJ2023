@@ -1,3 +1,7 @@
+//Implementace překladače imperativního jazyka IFJ23
+//Danil Domrachev (xdomra00)
+//Elena Ivanova (xivano08)
+
 #include "generator.h"
 
 char *lowlevel_var_format = "%s@&_%s$%d_&";

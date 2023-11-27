@@ -1,3 +1,7 @@
+//Implementace překladače imperativního jazyka IFJ23
+//Danil Domrachev (xdomra00)
+//Martin Rybnikář (xrybni10)
+
 #ifndef LEXICAL_H
 #define LEXICAL_H
 
@@ -7,6 +11,7 @@
 #define MAX_ESCAPE_HEX_LEN 8
 #define ASCII_REPR_START 31
 #define LEXEMES_COUNT 40
+
 
 extern bool eoln_flag; // means that there was an end of line during reading next token, becomes resets to false for every new reading
 extern bool end_of_file_flag;
@@ -21,7 +26,7 @@ typedef enum lexeme_enum
     MUL, DIV, ID1/* _ */, ID,
     LBR1 /* left ( bracket*/, RBR1/* right ) bracket*/, LBR2/* left { bracket*/, RBR2/* right } bracket*/,
     COLON, COMMA, RARROW /* -> */,
-    
+
     INT_LIT, DOUBLE_LIT, STRING_LIT/* including large string literal */,
 } lexeme;
 

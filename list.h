@@ -1,3 +1,6 @@
+//Implementace překladače imperativního jazyka IFJ23
+//Danil Domrachev (xdomra00)
+
 #ifndef LIST_H
 #define LIST_H
 

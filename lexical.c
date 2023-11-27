@@ -1,3 +1,8 @@
+//Implementace překladače imperativního jazyka IFJ23
+//Danil Domrachev (xdomra00)
+//Martin Rybnikář (xrybni10)
+
+
 #include "lexical.h"
 
 bool eoln_flag; // means that there was an end of line during reading next token, becomes resets to false for every new reading

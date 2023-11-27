@@ -1,3 +1,9 @@
+//Implementace překladače imperativního jazyka IFJ23
+//Danil Domrachev (xdomra00)
+//Matouš Huczala (xhucza02)
+//Elena Ivanova (xivano08)
+//Martin Rybnikář (xrybni10)
+
 #ifndef SYNTAX_H
 #define SYNTAX_H
 
@@ -46,7 +52,6 @@ typedef struct expr_lexeme_t
 
 
 void initPrecedenceTable();
-void searchCalledFunction(lex_token function);
 bool getFromGlobalTable(char *id, symtb_token **found);
 bool getFromLocalTables(char *id, symtb_token **token_found, symtable **table_found);
 bool getFromEverywhere(char *id, symtb_token **found, symtable **table_found);

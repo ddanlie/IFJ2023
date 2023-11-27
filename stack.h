@@ -1,3 +1,7 @@
+//Implementace překladače imperativního jazyka IFJ23
+//Danil Domrachev (xdomra00)
+
+
 #ifndef STACK_H
 #define STACK_H
 

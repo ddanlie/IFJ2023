@@ -1,4 +1,11 @@
+//Implementace překladače imperativního jazyka IFJ23
+//Danil Domrachev (xdomra00)
+//Matouš Huczala (xhucza02)
+//Elena Ivanova (xivano08)
+//Martin Rybnikář (xrybni10)
+
 #include "defs.h"
+
 
 int isDigit(char c){   //přidat do defs
     if(c >= '0' && c <= '9')
@@ -18,10 +25,6 @@ int isHex(char c)
         return 1;
     return 0;
 }
-
-
-
-
 
 
 void strZerosFill(char *str, int start_index, int end_index)

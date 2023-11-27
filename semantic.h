@@ -1,3 +1,5 @@
+//Implementace překladače imperativního jazyka IFJ23
+//Danil Domrachev (xdomra00)
 #ifndef SEMANTIC_H
 #define SEMANTIC_H
 

@@ -1,3 +1,7 @@
+//Implementace překladače imperativního jazyka IFJ23
+//Danil Domrachev (xdomra00)
+//Elena Ivanova (xivano08)
+
 #ifndef GENERATOR_H
 #define GENERATOR_H
 

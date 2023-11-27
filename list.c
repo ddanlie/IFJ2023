@@ -1,3 +1,4 @@
+//Implementace překladače imperativního jazyka IFJ23
 //Danil Domrachev (xdomra00)
 
 

@@ -1,3 +1,9 @@
+//Implementace překladače imperativního jazyka IFJ23
+//Danil Domrachev (xdomra00)
+//Matouš Huczala (xhucza02)
+//Elena Ivanova (xivano08)
+//Martin Rybnikář (xrybni10)
+
 #include "syntax.h"
 
 FILE *readfile;
@@ -106,6 +112,7 @@ void correct_current_lexeme(lex_token incorrect_tkn)
             break;
     }
 }
+
 //if lexeme is not in grammar change it to UNDEF '$'
 //careful! ID can be INT_LIT,STRING_LIT or DOUBLE_LIT. Control it before semantic check
 void expr_read_move()
@@ -173,7 +180,8 @@ bool EXPR()
     
     Stack *expr_stack = stackInit(sizeof(expr_lexeme));
     exprStackPushElem(expr_stack, NULL, UNDEF, '\0', UNDEF_TYPE, NULL);//push $ on top
-    
+
+
     if(previous_lex_token.lexeme_type == ID)//odd case when we don't know was it function call or expression. so we read token ahead
     {
         correct_current_lexeme(previous_lex_token);
@@ -1348,8 +1356,6 @@ bool BRANCH()
         generator_expr_res_name = NULL;
     }
     //generator end
-    
-    
     //previous token сan be ID
     //semantic
     bool push_orig = false;
@@ -1883,7 +1889,6 @@ void initPrecedenceTable()
     }
     
     precedence_table[LBR1][RBR1] = eq;
-    precedence_table[RBR1][LBR1] = eq;
 }
 
 void read_move()
